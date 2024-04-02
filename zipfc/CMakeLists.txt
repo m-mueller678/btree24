@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.27)
 project(zipfc)
 
-set(CMAKE_CXX_STANDARD 17)
-
 add_library(zipfc zipfc.cpp zipfc.h)
 add_custom_target(
         zipfc_cargo

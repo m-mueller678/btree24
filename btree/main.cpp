@@ -12,82 +12,37 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 #include <zipfc.h>
+#include <barrier>
 
 using namespace std;
 
-// zipfParameter is assumed to not change between invocations.
-unsigned zipf_next(BTreeCppPerfEvent &e, unsigned num_keys, double zipfParameter, bool shuffle, bool overGenerate) {
-    constexpr unsigned GEN_SIZE = 1 << 18;
-    static unsigned ARRAY[GEN_SIZE];
-    static unsigned index = GEN_SIZE - 1;
-    static unsigned generatedNumKeys = 0;
-
-    while (true) {
-        // COUNTER(zipf_fail_rate, num_keys > generatedNumKeys, 1 << 10);
-        if (num_keys > generatedNumKeys) {
-            index = GEN_SIZE - 1;
-        }
-        index += 1;
-        if (index == GEN_SIZE)
-            index = 0;
-        if (index == 0) {
-            e.disableCounters();
-            generatedNumKeys = num_keys + (overGenerate ? GEN_SIZE / 10 : 0);
-            generate_zipf(generatedNumKeys, zipfParameter, ARRAY, GEN_SIZE, shuffle);
-            e.enableCounters();
-        }
-        // COUNTER(zipf_reject_rate, ARRAY[index] >= num_keys, 1 << 10);
-        if (ARRAY[index] < num_keys) {
-            return ARRAY[index];
-        }
-    }
-}
-
-bool op_next(BTreeCppPerfEvent &e) {
-    constexpr unsigned GEN_SIZE = 5 * (1 << 18);
-    static bool ARRAY[GEN_SIZE];
-    static unsigned index = GEN_SIZE - 1;
-    index += 1;
-    if (index == GEN_SIZE)
-        index = 0;
-    if (index == 0) {
-        e.disableCounters();
-        unsigned trueCount = GEN_SIZE / 20;
-        for (unsigned i = 0; i < GEN_SIZE; ++i)
-            ARRAY[i] = i < trueCount;
-        random_shuffle(ARRAY, ARRAY + GEN_SIZE);
-        e.enableCounters();
-    }
-    return ARRAY[index];
-}
-
-uint64_t envu64(const char *env) {
+static uint64_t envu64(const char *env) {
     if (getenv(env))
         return strtod(getenv(env), nullptr);
     std::cerr << "missing env " << env << std::endl;
     abort();
 }
 
-double envf64(const char *env) {
+static double envf64(const char *env) {
     if (getenv(env))
         return strtod(getenv(env), nullptr);
     std::cerr << "missing env " << env << std::endl;
     abort();
 }
 
-uint8_t *makePayload(unsigned len) {
+static uint8_t *makePayload(unsigned len) {
     // add one to support zero length payload
     uint8_t *payload = new uint8_t[len + 1];
     memset(payload, 42, len);
     return payload;
 }
 
-bool isDataInt(BTreeCppPerfEvent &e) {
+static bool isDataInt(BTreeCppPerfEvent &e) {
     auto name = e.params["data_name"];
     return name == "int" || name == "rng4";
 }
 
-bool keySizeAcceptable(unsigned maxPayload, vector<string> &data) {
+static bool keySizeAcceptable(unsigned maxPayload, vector<string> &data) {
     for (auto &k: data) {
         if (k.size() + maxPayload > maxKvSize)
             return false;
@@ -95,9 +50,22 @@ bool keySizeAcceptable(unsigned maxPayload, vector<string> &data) {
     return true;
 }
 
-void runMulti(BTreeCppPerfEvent e, vector<string> &data, unsigned keyCount, unsigned payloadSize, unsigned opCount,
-              double zipfParameter, unsigned maxScanLength, bool dryRun) {
-    if (keyCount <= data.size() && keySizeAcceptable(payloadSize, data)) {
+static unsigned rangeStart(unsigned start, unsigned end, unsigned nthread, unsigned tid) {
+    return start + (end - start) * tid / nthread;
+}
+
+static void runMulti(BTreeCppPerfEvent e,
+                     vector<string> &data,
+                     unsigned keyCount,
+                     unsigned payloadSize,
+                     unsigned opCount,
+                     double zipfParameter,
+                     unsigned maxScanLength,
+                     bool dryRun,
+                     unsigned threadCount
+) {
+
+    if (keyCount + (opCount * threadCount) / 20 <= data.size() && keySizeAcceptable(payloadSize, data)) {
         if (!dryRun)
             random_shuffle(data.begin(), data.end());
         data.resize(keyCount);
@@ -108,31 +76,36 @@ void runMulti(BTreeCppPerfEvent e, vector<string> &data, unsigned keyCount, unsi
     }
 
     uint8_t *payload = makePayload(payloadSize);
+    unsigned preInsertCount = keyCount - keyCount / 10;
 
     DataStructureWrapper t(isDataInt(e));
-    unsigned preInsertCount = keyCount - keyCount / 10;
-    if (!dryRun)
-        for (uint64_t i = 0; i < preInsertCount; i++) {
-            uint8_t *key = (uint8_t *) data[i].data();
-            unsigned int length = data[i].size();
-            t.insert(key, length, payload, payloadSize);
-        }
 
-    {
-        // insert
-        e.setParam("op", "insert90");
-        BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
-        for (uint64_t i = preInsertCount; i < keyCount; i++) {
-            uint8_t *key = (uint8_t *) data[i].data();
-            unsigned int length = data[i].size();
-            t.insert(key, length, payload, payloadSize);
-        }
-    }
-
-    {
-        e.setParam("op", "ycsb_c");
-        BTreeCppPerfEventBlock b(e, t, opCount);
-        if (!dryRun)
+    std::vector<std::thread> threads;
+    std::barrier barrier{threadCount};
+    for (int i = 0; i < threadCount; ++i) {
+        // Start a thread and execute threadFunction with the thread ID as argument
+        threads.emplace_back([&](unsigned tid) {
+            barrier.arrive_and_wait();
+            for (uint64_t i = rangeStart(0, preInsertCount, threadCount, tid);
+                 i < rangeStart(0, preInsertCount, threadCount, tid + 1); i++) {
+                uint8_t *key = (uint8_t *) data[i].data();
+                unsigned int length = data[i].size();
+                t.insert(key, length, payload, payloadSize);
+            }
+            barrier.arrive_and_wait();
+            barrier.arrive_and_wait();
+            //insert
+            for (uint64_t i = rangeStart(preInsertCount, keyCount, threadCount, tid);
+                 i < rangeStart(preInsertCount, keyCount, threadCount, tid + 1); i++) {
+                uint8_t *key = (uint8_t *) data[i].data();
+                unsigned int length = data[i].size();
+                t.insert(key, length, payload, payloadSize);
+            }
+            barrier.arrive_and_wait();
+            uint32_t *lookup_indices = new uint32_t[opCount];
+            generate_zipf()
+            barrier.arrive_and_wait();
+            // lookup
             for (uint64_t i = 0; i < opCount; i++) {
                 unsigned keyIndex = zipf_next(e, keyCount, zipfParameter, false, false);
                 assert(keyIndex < data.size());
@@ -143,6 +116,36 @@ void runMulti(BTreeCppPerfEvent e, vector<string> &data, unsigned keyCount, unsi
                 if (!payload || (payloadSize != payloadSizeOut) || (payloadSize > 0 && *payload != 42))
                     throw;
             }
+
+        }, i);
+    }
+
+
+
+    // Wait for all threads to complete
+    for (auto &thread: threads) {
+        thread.join();
+    }
+
+
+
+    {
+        barrier.arrive_and_wait();
+        // pre insert
+        barrier.arrive_and_wait();
+        {
+            e.setParam("op", "insert90");
+            BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
+            barrier.arrive_and_wait();
+            barrier.arrive_and_wait();
+        }
+        {
+            e.setParam("op", "ycsb_c");
+            BTreeCppPerfEventBlock b(e, t, opCount);
+            barrier.arrive_and_wait();
+            barrier.arrive_and_wait();
+        }
+
     }
 
     std::minstd_rand generator(std::rand());
@@ -174,55 +177,8 @@ void runMulti(BTreeCppPerfEvent e, vector<string> &data, unsigned keyCount, unsi
     data.clear();
 }
 
-
-void runYcsbC(BTreeCppPerfEvent e, vector<string> &data, unsigned keyCount, unsigned payloadSize, unsigned opCount,
-              double zipfParameter, bool dryRun) {
-    if (keyCount <= data.size() && keySizeAcceptable(payloadSize, data)) {
-        if (!dryRun)
-            random_shuffle(data.begin(), data.end());
-        data.resize(keyCount);
-    } else {
-        std::cerr << "UNACCEPTABLE" << std::endl;
-        keyCount = 0;
-        opCount = 0;
-    }
-
-    uint8_t *payload = makePayload(payloadSize);
-
-    DataStructureWrapper t(isDataInt(e));
-    {
-        // insert
-        e.setParam("op", "ycsb_c_init");
-        BTreeCppPerfEventBlock b(e, t, keyCount);
-        if (!dryRun)
-            for (uint64_t i = 0; i < keyCount; i++) {
-                uint8_t *key = (uint8_t *) data[i].data();
-                unsigned int length = data[i].size();
-                t.insert(key, length, payload, payloadSize);
-            }
-    }
-
-    {
-        e.setParam("op", "ycsb_c");
-        BTreeCppPerfEventBlock b(e, t, opCount);
-        if (!dryRun)
-            for (uint64_t i = 0; i < opCount; i++) {
-                unsigned keyIndex = zipf_next(e, keyCount, zipfParameter, false, false);
-                assert(keyIndex < data.size());
-                unsigned payloadSizeOut;
-                uint8_t *key = (uint8_t *) data[keyIndex].data();
-                unsigned long length = data[keyIndex].size();
-                uint8_t *payload = t.lookup(key, length, payloadSizeOut);
-                if (!payload || (payloadSize != payloadSizeOut) || (payloadSize > 0 && *payload != 42))
-                    throw;
-            }
-    }
-
-    data.clear();
-}
-
-
-void runSortedInsert(BTreeCppPerfEvent e, vector<string> &data, unsigned keyCount, unsigned payloadSize, bool dryRun,
+static void
+runSortedInsert(BTreeCppPerfEvent e, vector<string> &data, unsigned keyCount, unsigned payloadSize, bool dryRun,
                      bool doSort = true) {
     if (keyCount <= data.size() && keySizeAcceptable(payloadSize, data)) {
         data.resize(keyCount);
@@ -251,182 +207,7 @@ void runSortedInsert(BTreeCppPerfEvent e, vector<string> &data, unsigned keyCoun
     data.clear();
 }
 
-bool computeInitialKeyCount(unsigned avgKeyCount,
-                            unsigned availableKeyCount,
-                            unsigned opCount,
-                            unsigned &initialKeyCount,
-                            unsigned &reasonableMaxKeys) {
-    bool configValid = false;
-    initialKeyCount = 0;
-    if (avgKeyCount > opCount / 40) {
-        initialKeyCount = avgKeyCount - opCount / 40;
-        unsigned expectedInsertions = opCount / 20;
-        reasonableMaxKeys = initialKeyCount + expectedInsertions * 2;
-        if (reasonableMaxKeys <= availableKeyCount) {
-            configValid = true;
-        } else {
-            std::cerr << "not enough keys" << std::endl;
-        }
-    } else {
-        std::cerr << "too many ops for data size" << std::endl;
-    }
-    return configValid;
-}
-
-void runYcsbD(BTreeCppPerfEvent e,
-              vector<string> &data,
-              unsigned avgKeyCount,
-              unsigned payloadSize,
-              unsigned opCount,
-              double zipfParameter,
-              bool dryRun) {
-    unsigned initialKeyCount = 0;
-    unsigned reasonableMaxKeys = 0;
-    if (!computeInitialKeyCount(avgKeyCount, data.size(), opCount, initialKeyCount, reasonableMaxKeys) ||
-        !keySizeAcceptable(payloadSize, data)) {
-        opCount = 0;
-        initialKeyCount = 0;
-        data.resize(0);
-    }
-
-    if (!dryRun)
-        random_shuffle(data.begin(), data.end());
-    uint8_t *payload = makePayload(payloadSize);
-
-    DataStructureWrapper t(isDataInt(e));
-    {
-        // insert
-        e.setParam("op", "ycsb_d_init");
-        BTreeCppPerfEventBlock b(e, t, initialKeyCount);
-        if (!dryRun)
-            for (uint64_t i = 0; i < initialKeyCount; i++) {
-                uint8_t *key = (uint8_t *) data[i].data();
-                unsigned int length = data[i].size();
-                t.insert(key, length, payload, payloadSize);
-            }
-    }
-
-    unsigned insertedCount = initialKeyCount;
-    {
-        e.setParam("op", "ycsb_d");
-        BTreeCppPerfEventBlock b(e, t, opCount);
-        if (!dryRun)
-            for (uint64_t completedOps = 0; completedOps < opCount; ++completedOps) {
-                if (op_next(e)) {
-                    if (insertedCount == data.size()) {
-                        std::cerr << "exhausted keys for insertion" << std::endl;
-                        abort();
-                    }
-                    uint8_t *key = (uint8_t *) data[insertedCount].data();
-                    unsigned int length = data[insertedCount].size();
-                    t.insert(key, length, payload, payloadSize);
-                    ++insertedCount;
-                } else {
-                    unsigned zipfSample = zipf_next(e, insertedCount, zipfParameter, false, true);
-                    unsigned keyIndex = insertedCount - 1 - zipfSample;
-                    unsigned payloadSizeOut;
-                    uint8_t *key = (uint8_t *) data[keyIndex].data();
-                    unsigned long length = data[keyIndex].size();
-                    uint8_t *payload = t.lookup(key, length, payloadSizeOut);
-                    if (!payload || (payloadSize != payloadSizeOut) || (payloadSize > 0 && *payload != 42))
-                        throw;
-                }
-            }
-    }
-}
-
-void runYcsbE(BTreeCppPerfEvent e,
-              vector<string> &data,
-              unsigned avgKeyCount,
-              unsigned payloadSize,
-              unsigned opCount,
-              unsigned maxScanLength,
-              double zipfParameter,
-              bool dryRun) {
-    unsigned initialKeyCount = 0;
-    unsigned reasonableMaxKeys = 0;
-    if (!computeInitialKeyCount(avgKeyCount, data.size(), opCount, initialKeyCount, reasonableMaxKeys) ||
-        !keySizeAcceptable(payloadSize, data)) {
-        opCount = 0;
-        initialKeyCount = 0;
-        data.resize(0);
-    }
-
-    if (!dryRun)
-        random_shuffle(data.begin(), data.end());
-    uint8_t *payload = makePayload(payloadSize);
-    if (data.size() > 0) {  // permute zipf indices
-        unsigned *permutation = new unsigned[data.size()];
-        for (unsigned i = 0; i < data.size(); ++i) {
-            permutation[i] = i;
-        }
-        random_shuffle(permutation, permutation + data.size());
-        delete[] permutation;
-    }
-    DataStructureWrapper t(isDataInt(e));
-    {
-        // insert
-        e.setParam("op", "ycsb_e_init");
-        BTreeCppPerfEventBlock b(e, t, initialKeyCount);
-        if (!dryRun)
-            for (uint64_t i = 0; i < initialKeyCount; i++) {
-                uint8_t *key = (uint8_t *) data[i].data();
-                unsigned int length = data[i].size();
-                t.insert(key, length, payload, payloadSize);
-            }
-    }
-
-    std::minstd_rand generator(std::rand());
-    std::uniform_int_distribution<unsigned> scanLengthDistribution{1, maxScanLength};
-
-    unsigned insertedCount = initialKeyCount;
-    unsigned sampleIndex = 0;
-    {
-        e.setParam("op", "ycsb_e");
-        BTreeCppPerfEventBlock b(e, t, opCount);
-        if (!dryRun)
-            for (uint64_t completedOps = 0; completedOps < opCount; ++completedOps, ++sampleIndex) {
-                if (op_next(e)) {
-                    //printf("insert :%lu\n",completedOps);
-                    if (insertedCount == reasonableMaxKeys) {
-                        std::cerr << "exhausted keys for insertion" << std::endl;
-                        abort();
-                    }
-                    uint8_t *key = (uint8_t *) data[insertedCount].data();
-                    unsigned int length = data[insertedCount].size();
-                    t.insert(key, length, payload, payloadSize);
-                    ++insertedCount;
-                } else {
-                    //printf("range :%lu\n",completedOps);
-                    unsigned scanLength = scanLengthDistribution(generator);
-                    while (true) {
-                        // num_keys for zipf distribution must remain constant to not mess with shuffling permutation.
-                        unsigned keyIndex = zipf_next(e, reasonableMaxKeys, zipfParameter, true, true);
-                        // COUNTER(zipf_reject_rate_E, keyIndex >= insertedCount, 1 << 10);
-                        if (keyIndex < insertedCount) {
-                            uint8_t keyBuffer[maxKvSize];
-                            unsigned foundIndex = 0;
-                            uint8_t *key = (uint8_t *) data[keyIndex].data();
-                            unsigned int keyLen = data[keyIndex].size();
-                            auto callback = [&](unsigned keyLen, uint8_t *payload, unsigned loadedPayloadLen) {
-                                if (payloadSize != loadedPayloadLen) {
-                                    throw;
-                                }
-                                foundIndex += 1;
-                                return foundIndex < scanLength;
-                            };
-                            t.range_lookup(key, keyLen, keyBuffer, callback);
-                            break;
-                        } else {
-                            ++sampleIndex;
-                        }
-                    }
-                }
-            }
-    }
-}
-
-void runSortedScan(BTreeCppPerfEvent e,
+static void runSortedScan(BTreeCppPerfEvent e,
                    vector<string> &data,
                    unsigned keyCount,
                    unsigned payloadSize,
@@ -489,22 +270,13 @@ void runSortedScan(BTreeCppPerfEvent e,
     }
 }
 
-unsigned workloadGenCount(unsigned keyCount, unsigned opCount, unsigned ycsbVariant) {
+static unsigned workloadGenCount(unsigned keyCount, unsigned opCount, unsigned ycsbVariant) {
     switch (envu64("YCSB_VARIANT")) {
-        case 3: {
-            return keyCount;
-        }
-        case 4: {
-            return keyCount;
-        }
         case 401: {
             return keyCount;
         }
         case 402: {
             return keyCount;
-        }
-        case 5: {
-            return keyCount + opCount;
         }
         case 501: {
             return keyCount;
@@ -543,10 +315,12 @@ int main(int argc, char *argv[]) {
     std::string keySet = getenv("DATA");
     unsigned payloadSize = envu64("PAYLOAD_SIZE");
     unsigned opCount = envu64("OP_COUNT");
+    unsigned threadCount = envu64("THREADS");
     double zipfParameter = envf64("ZIPF");
     double intDensity = envf64("DENSITY");
     BTreeCppPerfEvent e = makePerfEvent(keySet, keyCount);
     e.setParam("payload_size", payloadSize);
+    e.setParam("threads", threadCount);
     e.setParam("run_id", run_id);
     e.setParam("ycsb_zipf", zipfParameter);
     e.setParam("bin_name", std::string{argv[0]});
@@ -687,14 +461,6 @@ int main(int argc, char *argv[]) {
     }
 
     switch (envu64("YCSB_VARIANT")) {
-        case 3: {
-            runYcsbC(e, data, keyCount, payloadSize, opCount, zipfParameter, dryRun);
-            break;
-        }
-        case 4: {
-            runYcsbD(e, data, keyCount, payloadSize, opCount, zipfParameter, dryRun);
-            break;
-        }
         case 401: {
             runSortedInsert(e, data, keyCount, payloadSize, dryRun);
             break;
@@ -703,16 +469,12 @@ int main(int argc, char *argv[]) {
             runSortedInsert(e, data, keyCount, payloadSize, dryRun, false);
             break;
         }
-        case 5: {
-            runYcsbE(e, data, keyCount, payloadSize, opCount, maxScanLength, zipfParameter, dryRun);
-            break;
-        }
         case 501: {
             runSortedScan(e, data, keyCount, payloadSize, opCount, maxScanLength, zipfParameter, dryRun);
             break;
         }
         case 6: {
-            runMulti(e, data, keyCount, payloadSize, opCount, zipfParameter, maxScanLength, dryRun);
+            runMulti(e, data, keyCount, payloadSize, opCount, zipfParameter, maxScanLength, dryRun, threadCount);
             break;
         }
         default: {
