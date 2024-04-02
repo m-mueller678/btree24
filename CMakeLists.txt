@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.27)
+project(btree24)
+
+set(CMAKE_CXX_STANDARD 17)
+
+add_executable(btree24 btree/main.cpp
+        btree/PerfEvent.hpp
+        btree/btree2024.hpp
+        btree/DataStructureWrapper.cpp
+        btree/DataStructureWrapper.hpp
+        btree/BTree.cpp
+        btree/BTree.hpp
+        btree/vmache.cpp
+        btree/Tag.cpp
+        btree/Tag.hpp)
