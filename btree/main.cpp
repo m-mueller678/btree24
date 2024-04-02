@@ -11,13 +11,9 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
-using namespace std;
+#include <zipfc.h>
 
-extern "C" {
-void zipf_generate(uint32_t, double, uint32_t *, uint32_t, bool);
-void generate_rng4(uint64_t seed, uint32_t count, uint32_t *out);
-void generate_rng8(uint64_t seed, uint32_t count, uint64_t *out);
-}
+using namespace std;
 
 // zipfParameter is assumed to not change between invocations.
 unsigned zipf_next(BTreeCppPerfEvent &e, unsigned num_keys, double zipfParameter, bool shuffle, bool overGenerate) {
@@ -37,7 +33,7 @@ unsigned zipf_next(BTreeCppPerfEvent &e, unsigned num_keys, double zipfParameter
         if (index == 0) {
             e.disableCounters();
             generatedNumKeys = num_keys + (overGenerate ? GEN_SIZE / 10 : 0);
-            zipf_generate(generatedNumKeys, zipfParameter, ARRAY, GEN_SIZE, shuffle);
+            generate_zipf(generatedNumKeys, zipfParameter, ARRAY, GEN_SIZE, shuffle);
             e.enableCounters();
         }
         // COUNTER(zipf_reject_rate, ARRAY[index] >= num_keys, 1 << 10);

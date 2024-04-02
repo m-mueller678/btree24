@@ -12,4 +12,8 @@ add_executable(btree24 btree/main.cpp
         btree/BTree.hpp
         btree/vmache.cpp
         btree/Tag.cpp
-        btree/Tag.hpp)
+        btree/Tag.hpp
+)
+
+add_subdirectory(zipfc)
+target_link_libraries(btree24 PRIVATE zipfc)
