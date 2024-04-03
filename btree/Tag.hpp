@@ -14,6 +14,8 @@ enum class Tag : uint8_t {
     _last = 5,
 };
 
+bool isInner(Tag t);
+
 constexpr unsigned TAG_END = unsigned(Tag::_last) + 1;
 
 const char *tag_name(Tag tag);
@@ -25,6 +27,15 @@ struct RangeOpCounter {
     thread_local static std::bernoulli_distribution range_dist;
     thread_local static std::bernoulli_distribution point_dist;
     thread_local static std::minstd_rand rng;
+
+    RangeOpCounter() { init(); }
+
+    RangeOpCounter(RangeOpCounter const &other) : count(other.count.load(std::memory_order::relaxed)) {}
+
+    RangeOpCounter &operator=(RangeOpCounter const &other) {
+        count = other.count.load(std::memory_order::relaxed);
+        return *this;
+    }
 
     void init(uint8_t c = MAX_COUNT / 2) {
         count.store(c, std::memory_order_relaxed);
@@ -102,6 +113,10 @@ private:
     uint8_t x;
 public:
     RangeOpCounter rangeOpCounter;
+
+    TagAndDirty() {
+        init(Tag::_last, RangeOpCounter{});
+    }
 
     void init(Tag t, RangeOpCounter roc) {
         x = 128 | static_cast<uint8_t>(t);

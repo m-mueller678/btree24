@@ -14,3 +14,7 @@ const char *tag_name(Tag tag) {
     }
     abort();
 }
+
+bool isInner(Tag t) {
+    return t == Tag::Inner;
+}

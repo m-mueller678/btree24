@@ -24,6 +24,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <immintrin.h>
+#include "config.hpp"
 
 
 using namespace std;
@@ -33,8 +34,6 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 typedef u64 PID; // page id type
-
-static const u64 pageSize = 4096;
 
 struct alignas(4096) Page {
     bool dirty;
@@ -442,6 +441,12 @@ struct GuardX {
     // constructor
     GuardX() : pid(moved), ptr(nullptr) {}
 
+    // move constructor
+    GuardX(GuardX &&other) : pid(other.pid), ptr(other.ptr) {
+        other.pid = moved;
+        other.ptr = nullptr;
+    }
+
     // constructor
     explicit GuardX(u64 pid) : pid(pid) {
         ptr = reinterpret_cast<T *>(bm.fixX(pid));
@@ -468,6 +473,13 @@ struct GuardX {
             }
             yield(repeatCounter);
         }
+    }
+
+    static GuardX alloc() {
+        GuardX r;
+        r.ptr = reinterpret_cast<T *>(bm.allocPage());
+        r.pid = bm.toPID(r.ptr);
+        return r;
     }
 
     // assignment operator
@@ -504,16 +516,6 @@ struct GuardX {
             bm.unfixX(pid);
             pid = moved;
         }
-    }
-};
-
-template<class T>
-struct AllocGuard : public GuardX<T> {
-    template<typename ...Params>
-    AllocGuard(Params &&... params) {
-        GuardX<T>::ptr = reinterpret_cast<T *>(bm.allocPage());
-        new(GuardX<T>::ptr) T(std::forward<Params>(params)...);
-        GuardX<T>::pid = bm.toPID(GuardX<T>::ptr);
     }
 };
 

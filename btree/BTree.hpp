@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include "vmache.hpp"
+#include "nodes.hpp"
 
 struct BTree {
     BTree(bool isInt);
