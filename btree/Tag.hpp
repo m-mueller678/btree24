@@ -18,7 +18,6 @@ constexpr unsigned TAG_END = unsigned(Tag::_last) + 1;
 
 const char *tag_name(Tag tag);
 
-
 struct RangeOpCounter {
     std::atomic<uint8_t> count;
     static constexpr uint8_t MAX_COUNT = 3;

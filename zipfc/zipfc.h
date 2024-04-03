@@ -26,7 +26,7 @@ uint32_t *generate_workload_e(ZipfcRng *rng,
                               double zipf_parameter,
                               uint32_t base_key_count,
                               uint32_t available_key_count,
-                              uint32_t op_count,
+                              uint32_t op_count
 );
 void generate_rng4(ZipfcRng *rng, uint32_t count, uint32_t *out);
 void generate_rng8(ZipfcRng *rng, uint32_t count, uint64_t *out);

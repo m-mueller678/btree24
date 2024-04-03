@@ -5,16 +5,14 @@
 #include <set>
 #include <string>
 #include "PerfEvent.hpp"
-#include "btree2024.hpp"
 #include <iostream>
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 #include <zipfc.h>
 #include <barrier>
 
 using namespace std;
+
+static ZipfcRng *ZIPFC_RNG = nullptr;
 
 static uint64_t envu64(const char *env) {
     if (getenv(env))
@@ -55,218 +53,97 @@ static unsigned rangeStart(unsigned start, unsigned end, unsigned nthread, unsig
 }
 
 static void runMulti(BTreeCppPerfEvent e,
-                     vector<string> &data,
-                     unsigned keyCount,
+                     Key *data,
+                     unsigned baseKeyCount,
+                     unsigned maxKeyCount,
                      unsigned payloadSize,
-                     unsigned opCount,
+                     unsigned opCountC,
+                     unsigned opCountE,
                      double zipfParameter,
                      unsigned maxScanLength,
-                     bool dryRun,
                      unsigned threadCount
 ) {
-
-    if (keyCount + (opCount * threadCount) / 20 <= data.size() && keySizeAcceptable(payloadSize, data)) {
-        if (!dryRun)
-            random_shuffle(data.begin(), data.end());
-        data.resize(keyCount);
-    } else {
-        std::cerr << "UNACCEPTABLE" << std::endl;
-        keyCount = 0;
-        opCount = 0;
-    }
+    uint32_t *operations_c = generate_workload_c(ZIPFC_RNG, baseKeyCount, zipfParameter, opCountC * threadCount);
+    uint32_t *operations_e = generate_workload_e(ZIPFC_RNG, zipfParameter, baseKeyCount, maxKeyCount,
+                                                 opCountE * threadCount);
 
     uint8_t *payload = makePayload(payloadSize);
-    unsigned preInsertCount = keyCount - keyCount / 10;
+    unsigned preInsertCount = baseKeyCount - baseKeyCount / 10;
 
     DataStructureWrapper t(isDataInt(e));
 
     std::vector<std::thread> threads;
-    std::barrier barrier{threadCount};
+    std::barrier barrier{threadCount + 1};
     for (int i = 0; i < threadCount; ++i) {
         // Start a thread and execute threadFunction with the thread ID as argument
         threads.emplace_back([&](unsigned tid) {
+            uint8_t outBuffer[maxKvSize];
             barrier.arrive_and_wait();
             for (uint64_t i = rangeStart(0, preInsertCount, threadCount, tid);
                  i < rangeStart(0, preInsertCount, threadCount, tid + 1); i++) {
-                uint8_t *key = (uint8_t *) data[i].data();
-                unsigned int length = data[i].size();
-                t.insert(key, length, payload, payloadSize);
+                uint8_t *key = (uint8_t *) data[i].data;
+                unsigned int length = data[i].len;
+                // TODO t.insert(key, length, payload, payloadSize);
             }
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
             //insert
-            for (uint64_t i = rangeStart(preInsertCount, keyCount, threadCount, tid);
-                 i < rangeStart(preInsertCount, keyCount, threadCount, tid + 1); i++) {
-                uint8_t *key = (uint8_t *) data[i].data();
-                unsigned int length = data[i].size();
-                t.insert(key, length, payload, payloadSize);
+            for (uint64_t i = rangeStart(preInsertCount, baseKeyCount, threadCount, tid);
+                 i < rangeStart(preInsertCount, baseKeyCount, threadCount, tid + 1); i++) {
+                uint8_t *key = (uint8_t *) data[i].data;
+                unsigned int length = data[i].len;
+                // TODO t.insert(key, length, payload, payloadSize);
             }
             barrier.arrive_and_wait();
-            uint32_t *lookup_indices = new uint32_t[opCount];
-            generate_zipf()
             barrier.arrive_and_wait();
-            // lookup
-            for (uint64_t i = 0; i < opCount; i++) {
-                unsigned keyIndex = zipf_next(e, keyCount, zipfParameter, false, false);
-                assert(keyIndex < data.size());
+            // ycsb-c
+            for (uint64_t i = 0; i < opCountC; i++) {
+                unsigned keyIndex = operations_c[tid * opCountC + i];
+                assert(keyIndex < baseKeyCount);
                 unsigned payloadSizeOut;
-                uint8_t *key = (uint8_t *) data[keyIndex].data();
-                unsigned long length = data[keyIndex].size();
-                uint8_t *payload = t.lookup(key, length, payloadSizeOut);
-                if (!payload || (payloadSize != payloadSizeOut) || (payloadSize > 0 && *payload != 42))
-                    throw;
+                uint8_t *key = (uint8_t *) data[keyIndex].data;
+                unsigned long length = data[keyIndex].len;
+                //TODO uint8_t *payload = t.lookup(key, length, payloadSizeOut,);
             }
-
+            barrier.arrive_and_wait();
+            barrier.arrive_and_wait();
+            // ycsb-e
+            for (uint64_t i = 0; i < opCountE; i++) {
+                unsigned op = operations_e[tid * opCountC + i];
+                unsigned index = op & ((uint32_t(1) << 31) - 1);
+                bool is_insert = (op >> 31) != 0;
+                assert(index < maxKeyCount);
+                //TODO
+            }
+            barrier.arrive_and_wait();
         }, i);
     }
-
-
+    {
+        barrier.arrive_and_wait();
+        // pre insert
+        {
+            barrier.arrive_and_wait();
+            e.setParam("op", "insert90");
+            BTreeCppPerfEventBlock b(e, t, baseKeyCount - preInsertCount);
+            barrier.arrive_and_wait();
+        }
+        {
+            barrier.arrive_and_wait();
+            e.setParam("op", "ycsb_c");
+            BTreeCppPerfEventBlock b(e, t, opCountC);
+            barrier.arrive_and_wait();
+        }
+        {
+            barrier.arrive_and_wait();
+            e.setParam("op", "ycsb_e");
+            BTreeCppPerfEventBlock b(e, t, opCountE);
+            barrier.arrive_and_wait();
+        }
+    }
 
     // Wait for all threads to complete
     for (auto &thread: threads) {
         thread.join();
-    }
-
-
-
-    {
-        barrier.arrive_and_wait();
-        // pre insert
-        barrier.arrive_and_wait();
-        {
-            e.setParam("op", "insert90");
-            BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
-            barrier.arrive_and_wait();
-            barrier.arrive_and_wait();
-        }
-        {
-            e.setParam("op", "ycsb_c");
-            BTreeCppPerfEventBlock b(e, t, opCount);
-            barrier.arrive_and_wait();
-            barrier.arrive_and_wait();
-        }
-
-    }
-
-    std::minstd_rand generator(std::rand());
-    std::uniform_int_distribution<unsigned> scanLengthDistribution{1, maxScanLength};
-
-    {
-        uint8_t keyBuffer[maxKvSize];
-        e.setParam("op", "scan");
-        BTreeCppPerfEventBlock b(e, t, opCount);
-        if (!dryRun)
-            for (uint64_t i = 0; i < opCount; i++) {
-                unsigned scanLength = scanLengthDistribution(generator);
-                unsigned keyIndex = zipf_next(e, keyCount, zipfParameter, false, false);
-                assert(keyIndex < data.size());
-                uint8_t *key = (uint8_t *) data[keyIndex].data();
-                unsigned long keyLen = data[keyIndex].size();
-                unsigned foundIndex = 0;
-                auto callback = [&](unsigned keyLen, uint8_t *payload, unsigned loadedPayloadLen) {
-                    if (payloadSize != loadedPayloadLen) {
-                        throw;
-                    }
-                    foundIndex += 1;
-                    return foundIndex < scanLength;
-                };
-                t.range_lookup(key, keyLen, keyBuffer, callback);
-            }
-    }
-
-    data.clear();
-}
-
-static void
-runSortedInsert(BTreeCppPerfEvent e, vector<string> &data, unsigned keyCount, unsigned payloadSize, bool dryRun,
-                     bool doSort = true) {
-    if (keyCount <= data.size() && keySizeAcceptable(payloadSize, data)) {
-        data.resize(keyCount);
-        if (!dryRun && doSort) {
-            std::sort(data.begin(), data.end());
-        }
-    } else {
-        std::cerr << "UNACCEPTABLE" << std::endl;
-        keyCount = 0;
-    }
-
-    uint8_t *payload = makePayload(payloadSize);
-
-    DataStructureWrapper t(isDataInt(e));
-    {
-        // insert
-        e.setParam("op", "sorted_insert");
-        BTreeCppPerfEventBlock b(e, t, keyCount);
-        if (!dryRun)
-            for (uint64_t i = 0; i < keyCount; i++) {
-                uint8_t *key = (uint8_t *) data[i].data();
-                unsigned int length = data[i].size();
-                t.insert(key, length, payload, payloadSize);
-            }
-    }
-    data.clear();
-}
-
-static void runSortedScan(BTreeCppPerfEvent e,
-                   vector<string> &data,
-                   unsigned keyCount,
-                   unsigned payloadSize,
-                   unsigned opCount,
-                   unsigned maxScanLength,
-                   double zipfParameter,
-                   bool dryRun) {
-    if (keyCount <= data.size()) {
-        if (!dryRun)
-            random_shuffle(data.begin(), data.end());
-        data.resize(keyCount);
-    } else {
-        std::cerr << "not enough keys" << std::endl;
-        keyCount = 0;
-        opCount = 0;
-    }
-
-    uint8_t *payload = makePayload(payloadSize);
-
-    DataStructureWrapper t(isDataInt(e));
-    {
-        // insert
-        e.setParam("op", "sorted_scan_init");
-        BTreeCppPerfEventBlock b(e, t, keyCount);
-        if (!dryRun)
-            for (uint64_t i = 0; i < keyCount; i++) {
-                uint8_t *key = (uint8_t *) data[i].data();
-                unsigned int length = data[i].size();
-                t.insert(key, length, payload, payloadSize);
-            }
-    }
-    uint8_t keyBuffer[maxKvSize];
-    std::minstd_rand generator(std::rand());
-    std::uniform_int_distribution<unsigned> scanLengthDistribution{1, maxScanLength};
-
-    t.range_lookup(payload, 0, keyBuffer,
-                   [&](unsigned keyLen, uint8_t *payload, unsigned loadedPayloadLen) { return true; });
-
-    {
-        e.setParam("op", "sorted_scan");
-        BTreeCppPerfEventBlock b(e, t, opCount);
-        if (!dryRun)
-            for (uint64_t i = 0; i < opCount; i++) {
-                unsigned keyIndex = zipf_next(e, keyCount, zipfParameter, false, false);
-                assert(keyIndex < data.size());
-                unsigned scanLength = scanLengthDistribution(generator);
-
-                unsigned foundIndex = 0;
-                uint8_t *key = (uint8_t *) data[keyIndex].data();
-                unsigned int keyLen = data[keyIndex].size();
-                auto callback = [&](unsigned keyLen, uint8_t *payload, unsigned loadedPayloadLen) {
-                    if (payloadSize != loadedPayloadLen) {
-                        throw;
-                    }
-                    foundIndex += 1;
-                    return foundIndex < scanLength;
-                };
-                t.range_lookup(key, keyLen, keyBuffer, callback);
-            }
     }
 }
 
@@ -294,10 +171,9 @@ static unsigned workloadGenCount(unsigned keyCount, unsigned opCount, unsigned y
 int main(int argc, char *argv[]) {
     bool dryRun = getenv("DRYRUN");
 
-    vector<string> data;
-
     unsigned rand_seed = getenv("SEED") ? envu64("SEED") : time(NULL);
-    srand(rand_seed);
+    ZIPFC_RNG = create_zipfc_rng(rand_seed, 0, "main");
+
     unsigned keyCount = envu64("KEY_COUNT");
     if (!getenv("DATA")) {
         std::cerr << "no keyset" << std::endl;
@@ -318,6 +194,10 @@ int main(int argc, char *argv[]) {
     unsigned threadCount = envu64("THREADS");
     double zipfParameter = envf64("ZIPF");
     double intDensity = envf64("DENSITY");
+    uint64_t ycsb_variant = envu64("YCSB_VARIANT");
+    uint64_t partition_count = envu64("PARTITION_COUNT");
+    unsigned maxScanLength = envu64("SCAN_LENGTH");
+
     BTreeCppPerfEvent e = makePerfEvent(keySet, keyCount);
     e.setParam("payload_size", payloadSize);
     e.setParam("threads", threadCount);
@@ -326,155 +206,31 @@ int main(int argc, char *argv[]) {
     e.setParam("bin_name", std::string{argv[0]});
     e.setParam("density", intDensity);
     e.setParam("rand_seed", rand_seed);
-    unsigned maxScanLength = envu64("SCAN_LENGTH");
+    e.setParam("partition_count", partition_count);
+    e.setParam("ycsb_range_len", maxScanLength);
     if (maxScanLength == 0) {
         throw;
     }
-    e.setParam("ycsb_range_len", maxScanLength);
 
-    if (keySet == "int") {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        // Create a bernoulli_distribution with the given probability
-        std::bernoulli_distribution dist(intDensity);
-
-        // Generate a random boolean value
-        bool result = dist(gen);
-        unsigned genCount = workloadGenCount(keyCount, opCount, envu64("YCSB_VARIANT")) / intDensity;
-        vector<uint32_t> v;
-        if (dryRun) {
-            data.resize(genCount);
-        } else {
-            for (uint32_t i = 0; v.size() < genCount; i++)
-                v.push_back(i);
-            string s;
-            s.resize(4);
-            for (auto x: v) {
-                *(uint32_t *) (s.data()) = __builtin_bswap32(x);
-                data.push_back(s);
-            }
-        }
-    } else if (keySet == "rng4") {
-        unsigned genCount = workloadGenCount(keyCount, opCount, envu64("YCSB_VARIANT"));
-        if (dryRun) {
-            data.resize(genCount);
-        } else {
-            vector<uint32_t> v;
-            v.resize(genCount);
-            generate_rng4(std::rand(), genCount, v.data());
-            string s;
-            s.resize(4);
-            data.reserve(genCount);
-            for (auto x: v) {
-                *(uint32_t *) (s.data()) = __builtin_bswap32(x);
-                data.push_back(s);
-            }
-        }
-    } else if (keySet == "rng8") {
-        unsigned genCount = workloadGenCount(keyCount, opCount, envu64("YCSB_VARIANT"));
-        if (dryRun) {
-            data.resize(genCount);
-        } else {
-            vector<uint64_t> v;
-            v.resize(genCount);
-            generate_rng8(std::rand(), genCount, v.data());
-            string s;
-            s.resize(8);
-            data.reserve(genCount);
-            for (auto x: v) {
-                *(uint64_t *) (s.data()) = __builtin_bswap64(x);
-                data.push_back(s);
-            }
-        }
-    } else if (keySet == "long1") {
-        for (unsigned i = 0; i < keyCount; i++) {
-            string s;
-            for (unsigned j = 0; j < i; j++)
-                s.push_back('A');
-            data.push_back(s);
-        }
-    } else if (keySet == "long2") {
-        for (unsigned i = 0; i < keyCount; i++) {
-            string s;
-            for (unsigned j = 0; j < i; j++)
-                s.push_back('A' + random() % 60);
-            data.push_back(s);
-        }
-    } else if (keySet == "partitioned_id") {
-        unsigned partitionCount = maxScanLength;
-        std::vector<uint32_t> next_id;
-        for (unsigned i = 0; i < partitionCount; ++i)
-            next_id.push_back(0);
-
-        std::mt19937 gen(rand_seed);
-        std::uniform_int_distribution dist(uint32_t(0), uint32_t(partitionCount - 1));
-
-        data.reserve(keyCount);
-        for (uint32_t i = 0; i < keyCount; i++) {
-            uint64_t partition = dist(gen);
-            uint64_t id = next_id[partition]++;
-            union {
-                uint64_t key;
-                uint8_t keyBytes[8];
-            };
-            key = __builtin_bswap64(partition << 32 | id);
-            data.emplace_back(keyBytes, keyBytes + 8);
-        }
-    } else {
-        ifstream in(keySet);
-        keySet = "file:" + keySet;
-        if (dryRun && keySet == "file:data/access")
-            data.resize(6625815);
-        else if (dryRun && keySet == "file:data/genome")
-            data.resize(262084);
-        else if (dryRun && keySet == "file:data/urls")
-            data.resize(6393703);
-        else if (dryRun && keySet == "file:data/urls-short")
-            data.resize(6391379);
-        else if (dryRun && keySet == "file:data/wiki")
-            data.resize(15772029);
-        else if (dryRun) {
-            std::cerr << "key count unknown for [" << keySet << "]" << std::endl;
-            abort();
-        } else {
-            string line;
-            while (getline(in, line)) {
-                if (dryRun) {
-                    data.emplace_back();
-                } else {
-                    if (configName == std::string{"art"})
-                        line.push_back(0);
-                    data.push_back(line);
-                }
-            }
-        }
-    }
-
-    for (unsigned i = 0; i < data.size(); ++i) {
-        if (data[i].size() + payloadSize > maxKvSize) {
+    auto keyGenCount = workloadGenCount(keyCount, opCount, ycsb_variant);
+    Key *data = zipfc_load_keys(ZIPFC_RNG, keySet.c_str(), keyCount, intDensity, partition_count);
+    for (unsigned i = 0; i < keyGenCount; ++i) {
+        if (data[i].len + payloadSize > maxKvSize) {
             std::cerr << "key too long for page size" << std::endl;
-            // this forces the key count check to fail and emits nan values.
-            data.clear();
-            keyCount = 1;
-            break;
+            abort();
         }
     }
 
-    switch (envu64("YCSB_VARIANT")) {
+    switch (ycsb_variant) {
         case 401: {
-            runSortedInsert(e, data, keyCount, payloadSize, dryRun);
-            break;
-        }
-        case 402: {
-            runSortedInsert(e, data, keyCount, payloadSize, dryRun, false);
-            break;
+            abort();
         }
         case 501: {
-            runSortedScan(e, data, keyCount, payloadSize, opCount, maxScanLength, zipfParameter, dryRun);
-            break;
+            abort();
         }
         case 6: {
-            runMulti(e, data, keyCount, payloadSize, opCount, zipfParameter, maxScanLength, dryRun, threadCount);
+            runMulti(e, data, keyCount, keyGenCount, payloadSize, opCount, opCount, zipfParameter, maxScanLength,
+                     threadCount);
             break;
         }
         default: {
@@ -485,5 +241,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
-#pragma GCC diagnostic pop

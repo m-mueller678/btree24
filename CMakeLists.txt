@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(btree24 btree/main.cpp
         btree/PerfEvent.hpp
-        btree/btree2024.hpp
         btree/DataStructureWrapper.cpp
         btree/DataStructureWrapper.hpp
         btree/BTree.cpp
@@ -18,3 +17,9 @@ add_executable(btree24 btree/main.cpp
 
 add_subdirectory(zipfc)
 target_link_libraries(btree24 PRIVATE zipfc)
+
+find_library(LIBAIO_LIBRARY NAMES aio)
+if (NOT LIBAIO_LIBRARY)
+    message(FATAL_ERROR "libaio library not found")
+endif ()
+target_link_libraries(btree24 PRIVATE ${LIBAIO_LIBRARY})

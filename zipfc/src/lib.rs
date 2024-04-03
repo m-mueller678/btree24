@@ -48,6 +48,7 @@ impl Key {
 
 pub type MainRng = Xoshiro256StarStar;
 
+#[no_mangle]
 pub unsafe extern "C" fn zipfc_load_keys(
     rng: *mut MainRng,
     name: *const c_char,
@@ -147,6 +148,7 @@ fn rng_stream(rng: &mut MainRng) -> impl Iterator<Item = MainRng> + '_ {
     })
 }
 
+#[no_mangle]
 pub unsafe extern "C" fn create_zipfc_rng(
     seed: u64,
     thread: u64,
