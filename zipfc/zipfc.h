@@ -22,8 +22,6 @@ uint32_t *generate_workload_c(
         double zipf_parameter,
         uint32_t sample_count
 );
-void generate_rng4(ZipfcRng *rng, uint32_t count, uint32_t *out);
-void generate_rng8(ZipfcRng *rng, uint32_t count, uint64_t *out);
 }
 
 #endif //BTREE24_ZIPFC_H

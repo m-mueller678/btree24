@@ -2,3 +2,5 @@
 /.idea/
 /env_out/
 /env/block_device.env
+/disk
+/data

@@ -98,11 +98,12 @@ pub unsafe extern "C" fn zipfc_load_keys(
                 .map(|l| Key::from_vec(l.unwrap().into_bytes()))
                 .collect();
             lines.par_shuffle(rng);
+            lines.truncate(count as usize);
             lines
         }
     };
-    dbg!(&keys);
     assert_eq!(keys.len(), count as usize);
+    //dbg!(&keys);
     keys.leak().as_ptr()
 }
 
