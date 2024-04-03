@@ -1,0 +1,1 @@
+cat env/block_device.env env/multi.env > env_out/multi.env

@@ -12,4 +12,5 @@ const char *tag_name(Tag tag) {
         T(Dense2)
 #undef T
     }
+    abort();
 }

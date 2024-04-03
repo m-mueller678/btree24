@@ -159,7 +159,7 @@ static unsigned workloadGenCount(unsigned keyCount, unsigned opCount, unsigned y
             return keyCount;
         }
         case 6: {
-            return keyCount;
+            return keyCount + keyCount;
         }
         default: {
             std::cerr << "bad ycsb variant" << std::endl;

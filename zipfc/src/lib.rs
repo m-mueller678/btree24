@@ -189,27 +189,24 @@ pub unsafe extern "C" fn generate_workload_c(
 }
 
 fn fill_zipf(rng: &mut Xoshiro256StarStar, dst: &mut [MaybeUninit<u32>], key_count: u32, p: f64) {
-    const SHUFFLE_SCALE: usize = 1 << 20;
     if key_count == 0 {
         assert!(dst.is_empty());
         return;
     }
     let generator = if p > 0.0 {
-        Ok(ZipfDistribution::new(key_count as usize * SHUFFLE_SCALE, p).unwrap())
+        Ok(ZipfDistribution::new(key_count as usize, p).unwrap())
     } else {
         Err(Uniform::new(0, key_count))
     };
+    // the hashing based sampling described in the ycsb paper deviates noticeably from the desired zipf distribution, so we use a random permutation instead
+    let mut permutation:Vec<u32> = (0..key_count).into_par_iter().collect();
+    permutation.par_shuffle(rng);
 
     let chunks: Vec<_> = dst.chunks_mut(1 << 16).zip(rng_stream(rng)).collect();
     chunks.into_par_iter().for_each(|(chunk, mut rng)| {
         for d in chunk {
             let x = match &generator {
-                Ok(zipf) => {
-                    // this modulo zipf sampling is described in the ycsb paper
-                    let mut hasher = DefaultHasher::default();
-                    hasher.write_usize(zipf.sample(&mut rng));
-                    (hasher.finish() % key_count as u64) as u32
-                }
+                Ok(zipf) => permutation[zipf.sample(&mut rng)-1],
                 Err(uniform) => uniform.sample(&mut rng),
             };
             d.write(x);
