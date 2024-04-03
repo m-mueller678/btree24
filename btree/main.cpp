@@ -54,8 +54,7 @@ static unsigned rangeStart(unsigned start, unsigned end, unsigned nthread, unsig
 
 static void runMulti(BTreeCppPerfEvent e,
                      Key *data,
-                     unsigned baseKeyCount,
-                     unsigned maxKeyCount,
+                     unsigned keyCount,
                      unsigned payloadSize,
                      unsigned opCountC,
                      unsigned opCountE,
@@ -63,12 +62,11 @@ static void runMulti(BTreeCppPerfEvent e,
                      unsigned maxScanLength,
                      unsigned threadCount
 ) {
-    uint32_t *operations_c = generate_workload_c(ZIPFC_RNG, baseKeyCount, zipfParameter, opCountC * threadCount);
-    uint32_t *operations_e = generate_workload_e(ZIPFC_RNG, zipfParameter, baseKeyCount, maxKeyCount,
-                                                 opCountE * threadCount);
+    uint32_t *operations_c = generate_workload_c(ZIPFC_RNG, keyCount, zipfParameter, opCountC * threadCount);
+    uint32_t *operations_e = generate_workload_c(ZIPFC_RNG, keyCount, zipfParameter, opCountE * threadCount);
 
     uint8_t *payload = makePayload(payloadSize);
-    unsigned preInsertCount = baseKeyCount - baseKeyCount / 10;
+    unsigned preInsertCount = keyCount - keyCount / 10;
 
     DataStructureWrapper t(isDataInt(e));
 
@@ -88,8 +86,8 @@ static void runMulti(BTreeCppPerfEvent e,
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
             //insert
-            for (uint64_t i = rangeStart(preInsertCount, baseKeyCount, threadCount, tid);
-                 i < rangeStart(preInsertCount, baseKeyCount, threadCount, tid + 1); i++) {
+            for (uint64_t i = rangeStart(preInsertCount, keyCount, threadCount, tid);
+                 i < rangeStart(preInsertCount, keyCount, threadCount, tid + 1); i++) {
                 uint8_t *key = (uint8_t *) data[i].data;
                 unsigned int length = data[i].len;
                 // TODO t.insert(key, length, payload, payloadSize);
@@ -99,7 +97,7 @@ static void runMulti(BTreeCppPerfEvent e,
             // ycsb-c
             for (uint64_t i = 0; i < opCountC; i++) {
                 unsigned keyIndex = operations_c[tid * opCountC + i];
-                assert(keyIndex < baseKeyCount);
+                assert(keyIndex < keyCount);
                 unsigned payloadSizeOut;
                 uint8_t *key = (uint8_t *) data[keyIndex].data;
                 unsigned long length = data[keyIndex].len;
@@ -109,10 +107,8 @@ static void runMulti(BTreeCppPerfEvent e,
             barrier.arrive_and_wait();
             // ycsb-e
             for (uint64_t i = 0; i < opCountE; i++) {
-                unsigned op = operations_e[tid * opCountC + i];
-                unsigned index = op & ((uint32_t(1) << 31) - 1);
-                bool is_insert = (op >> 31) != 0;
-                assert(index < maxKeyCount);
+                unsigned index = operations_e[tid * opCountC + i];
+                assert(index < keyCount);
                 //TODO
             }
             barrier.arrive_and_wait();
@@ -124,7 +120,7 @@ static void runMulti(BTreeCppPerfEvent e,
         {
             barrier.arrive_and_wait();
             e.setParam("op", "insert90");
-            BTreeCppPerfEventBlock b(e, t, baseKeyCount - preInsertCount);
+            BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
             barrier.arrive_and_wait();
         }
         {
@@ -144,27 +140,6 @@ static void runMulti(BTreeCppPerfEvent e,
     // Wait for all threads to complete
     for (auto &thread: threads) {
         thread.join();
-    }
-}
-
-static unsigned workloadGenCount(unsigned keyCount, unsigned opCount, unsigned ycsbVariant) {
-    switch (envu64("YCSB_VARIANT")) {
-        case 401: {
-            return keyCount;
-        }
-        case 402: {
-            return keyCount;
-        }
-        case 501: {
-            return keyCount;
-        }
-        case 6: {
-            return keyCount + keyCount;
-        }
-        default: {
-            std::cerr << "bad ycsb variant" << std::endl;
-            abort();
-        }
     }
 }
 
@@ -212,9 +187,8 @@ int main(int argc, char *argv[]) {
         throw;
     }
 
-    auto keyGenCount = workloadGenCount(keyCount, opCount, ycsb_variant);
     Key *data = zipfc_load_keys(ZIPFC_RNG, keySet.c_str(), keyCount, intDensity, partition_count);
-    for (unsigned i = 0; i < keyGenCount; ++i) {
+    for (unsigned i = 0; i < keyCount; ++i) {
         if (data[i].len + payloadSize > maxKvSize) {
             std::cerr << "key too long for page size" << std::endl;
             abort();
@@ -229,8 +203,7 @@ int main(int argc, char *argv[]) {
             abort();
         }
         case 6: {
-            runMulti(e, data, keyCount, keyGenCount, payloadSize, opCount, opCount, zipfParameter, maxScanLength,
-                     threadCount);
+            runMulti(e, data, keyCount, payloadSize, opCount, opCount, zipfParameter, maxScanLength, threadCount);
             break;
         }
         default: {

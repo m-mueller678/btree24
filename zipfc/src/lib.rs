@@ -184,7 +184,7 @@ pub unsafe extern "C" fn generate_workload_c(
         zipf_parameter,
     );
     out.set_len(count as usize);
-    dbg!(&out);
+    //dbg!(&out);
     out.leak().as_ptr()
 }
 
@@ -199,46 +199,17 @@ fn fill_zipf(rng: &mut Xoshiro256StarStar, dst: &mut [MaybeUninit<u32>], key_cou
         Err(Uniform::new(0, key_count))
     };
     // the hashing based sampling described in the ycsb paper deviates noticeably from the desired zipf distribution, so we use a random permutation instead
-    let mut permutation:Vec<u32> = (0..key_count).into_par_iter().collect();
+    let mut permutation: Vec<u32> = (0..key_count).into_par_iter().collect();
     permutation.par_shuffle(rng);
 
     let chunks: Vec<_> = dst.chunks_mut(1 << 16).zip(rng_stream(rng)).collect();
     chunks.into_par_iter().for_each(|(chunk, mut rng)| {
         for d in chunk {
             let x = match &generator {
-                Ok(zipf) => permutation[zipf.sample(&mut rng)-1],
+                Ok(zipf) => permutation[zipf.sample(&mut rng) - 1],
                 Err(uniform) => uniform.sample(&mut rng),
             };
             d.write(x);
         }
     });
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn generate_workload_e(
-    rng: *mut MainRng,
-    zipf_parameter: f64,
-    base_key_count: u32,
-    available_key_count: u32,
-    op_count: u32,
-) -> *const u32 {
-    let insertions = op_count / 20;
-    let post_insert_key_count = base_key_count + insertions;
-    assert!(post_insert_key_count <= available_key_count);
-    let mut out = Vec::with_capacity(op_count as usize);
-    let to_fill = &mut out.spare_capacity_mut()[..op_count as usize];
-    let rng = &mut *rng;
-    for (i, dst) in to_fill[..insertions as usize].iter_mut().enumerate() {
-        dst.write((base_key_count + i as u32) | (1 << 31));
-    }
-    fill_zipf(
-        &mut *rng,
-        &mut to_fill[insertions as usize..],
-        available_key_count,
-        zipf_parameter,
-    );
-    out.set_len(op_count as usize);
-    out.par_shuffle(rng);
-    dbg!(&out);
-    out.leak().as_ptr()
 }
