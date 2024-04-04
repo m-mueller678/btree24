@@ -16,6 +16,7 @@ enum class Tag : uint8_t {
 
 bool isInner(Tag t);
 
+constexpr unsigned TAG_START = unsigned(Tag::Inner);
 constexpr unsigned TAG_END = unsigned(Tag::_last) + 1;
 
 const char *tag_name(Tag tag);
