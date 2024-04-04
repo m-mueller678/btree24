@@ -22,7 +22,7 @@ BTree::~BTree() {
 BTree::BTree(bool isInt) {
     auto root = (enableHash && !enableHashAdapt) ? HashNode::makeRootLeaf() : BTreeNode::makeLeaf();
     auto metadata = GuardX<MetaDataPage>::alloc();
-    metadata.pid = root.pid;
+    metadata->root = root.pid;
     this->metadata_pid = metadata.pid;
 #ifndef NDEBUG
     // prevent print from being optimized out. It is otherwise never called, but nice for debugging
