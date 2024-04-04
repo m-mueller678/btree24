@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <immintrin.h>
 #include "config.hpp"
+#include "Tag.hpp"
 
 
 using namespace std;
@@ -36,7 +37,7 @@ typedef uint64_t u64;
 typedef u64 PID; // page id type
 
 struct alignas(4096) Page {
-    bool dirty;
+    TagAndDirty tagAndDirty;
 };
 
 static const int16_t maxWorkerThreads = 128;
@@ -245,7 +246,7 @@ struct LibaioInterface {
         assert(pages.size() < maxIOs);
         for (u64 i = 0; i < pages.size(); i++) {
             PID pid = pages[i];
-            virtMem[pid].dirty = false;
+            virtMem[pid].tagAndDirty.set_dirty(false);
             cbPtr[i] = &cb[i];
             io_prep_pwrite(cb + i, blockfd, &virtMem[pid], pageSize, pageSize * pid);
         }

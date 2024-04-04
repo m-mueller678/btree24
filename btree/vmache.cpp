@@ -83,10 +83,11 @@ Page *BufferManager::allocPage() {
     if (useExmap) {
         abort();
     }
-    virtMem[pid].dirty = true;
+    virtMem[pid].tagAndDirty.set_dirty(true);
 
     return virtMem + pid;
 }
+
 
 void BufferManager::handleFault(PID pid) {
     physUsedCount++;
@@ -173,7 +174,7 @@ void BufferManager::evict() {
             u64 v = ps.stateAndVersion;
             switch (PageState::getState(v)) {
                 case PageState::Marked:
-                    if (virtMem[pid].dirty) {
+                    if (virtMem[pid].tagAndDirty.dirty()) {
                         if (ps.tryLockS(v))
                             toWrite.push_back(pid);
                     } else {
