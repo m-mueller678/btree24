@@ -13,7 +13,7 @@ struct BTree {
 
     PID metadataPid;
 
-    bool lookupImpl(uint8_t *key, unsigned keyLength, unsigned &payloadSizeOut, uint8_t *payloadOut);
+    bool lookupImpl(std::span<uint8_t> key, std::span<uint8_t> &valueOut);
 
     void insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload);
 

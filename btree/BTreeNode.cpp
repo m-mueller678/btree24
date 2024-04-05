@@ -423,3 +423,15 @@ void BTreeNode::restoreKeyExclusive(std::span<uint8_t> keyOut, unsigned index) {
     memcpy(keyOut.data(), getPrefix().data(), prefixLength);
     memcpy(keyOut.data() + prefixLength, getKey(index).data(), keyOut.size() - prefixLength);
 }
+
+bool BTreeNode::lookupLeaf(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
+    bool found;
+    unsigned pos = lowerBound(key, found);
+    if (!found)
+        return false;
+    auto payload = getPayload(pos);
+    if (payload.size() > maxKVSize)
+        throw OLCRestartException();
+    memcpy(valueOut.data(), payload.data(), payload.size());
+    return true;
+}

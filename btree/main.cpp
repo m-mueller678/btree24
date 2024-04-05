@@ -95,10 +95,10 @@ static void runMulti(BTreeCppPerfEvent e,
             for (uint64_t i = 0; i < opCountC; i++) {
                 unsigned keyIndex = operationsC[tid * opCountC + i];
                 assert(keyIndex < keyCount);
-                unsigned payloadSizeOut;
                 uint8_t *key = (uint8_t *) data[keyIndex].data;
                 unsigned long length = data[keyIndex].len;
-                //TODO uint8_t *payload = t.lookup(key, length, payloadSizeOut,);
+                if (!t.lookup({key, length}))
+                    abort();
             }
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();

@@ -131,6 +131,8 @@ struct BTreeNode : public BTreeNodeHeader {
 
     PID lookupInner(std::span<std::uint8_t> key);
 
+    bool lookupLeaf(std::span<uint8_t> key, std::span<uint8_t> &valueOut);
+
     void destroy();
 
     AnyNode *any() { return reinterpret_cast<AnyNode *>(this); }

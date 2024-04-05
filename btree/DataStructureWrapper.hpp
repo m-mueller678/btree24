@@ -23,11 +23,13 @@ struct DataStructureWrapper {
     TlxWrapper impl;
 #endif
 
-    uint8_t *lookup(uint8_t *key, unsigned keyLength, unsigned &payloadSizeOut);
+    // valueOut must be sufficiently large, the btree does not check if the value fits.
+    bool lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut);
 
-    bool lookup(uint8_t *key, unsigned keyLength) {
-        unsigned ignore;
-        return lookup(key, keyLength, ignore) != nullptr;
+    bool lookup(std::span<uint8_t> key) {
+        uint8_t out[maxKvSize];
+        std::span<uint8_t> out_span{out, maxKvSize};
+        return lookup(key, out_span);
     }
 
     void insert(std::span<uint8_t> key, std::span<uint8_t> payload);

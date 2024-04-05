@@ -104,3 +104,34 @@ void BTree::ensureSpace(PID innerNode, std::span<uint8_t> key) {
         trySplit(std::move(nodeLocked), std::move(parentLocked), key);
     };
 }
+
+bool BTree::lookupImpl(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
+    while (true) {
+        try {
+            GuardO<AnyNode> parent{metadataPid};
+            GuardO<AnyNode> node(reinterpret_cast<MetaDataPage *>(parent.ptr)->root, parent);
+
+            while (node->isAnyInner()) {
+                parent = std::move(node);
+                node = GuardO<AnyNode>(parent->lookupInner(key), parent);
+            }
+
+            switch (node->tag()) {
+                case Tag::Leaf: {
+                    node->basic()->rangeOpCounter.point_op();
+                    if (node->basic()->rangeOpCounter.shouldConvertHash()) { TODO_UNIMPL }
+                    return node->basic()->lookupLeaf(key, valueOut);
+                }
+                case Tag::Dense:
+                case Tag::Dense2: {
+                    TODO_UNIMPL
+                }
+                case Tag::Hash: {
+                    TODO_UNIMPL
+                }
+                default:
+                    ASSUME(false);
+            }
+        } catch (const OLCRestartException &) { yield(); }
+    }
+}
