@@ -1,4 +1,5 @@
 #include "DataStructureWrapper.hpp"
+#include "common.hpp"
 
 DataStructureWrapper::DataStructureWrapper(bool isInt)
         :
@@ -10,7 +11,7 @@ DataStructureWrapper::DataStructureWrapper(bool isInt)
 
 void DataStructureWrapper::testing_update_payload(uint8_t *key, unsigned keyLength, uint8_t *payload) {
 #ifdef CHECK_TREE_OPS
-    auto found = std_map.find(toByteVector(key, keyLength));
+    auto found = std_map.find(toByteVector({key, keyLength}));
    memcpy(found->second.data(), payload, found->second.size());
 #endif
 }

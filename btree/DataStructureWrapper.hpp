@@ -3,6 +3,7 @@
 
 #include "config.hpp"
 #include "BTree.hpp"
+#include <map>
 
 struct DataStructureWrapper {
     DataStructureWrapper(bool isInt);

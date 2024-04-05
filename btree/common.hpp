@@ -25,8 +25,7 @@ static void storeUnaligned(void *p, T t) {
     memcpy(p, &t, sizeof(T));
 }
 
-inline std::vector<uint8_t> toByteVector(std::span<uint8_t> k);
-
+std::vector<uint8_t> toByteVector(std::span<uint8_t> k);
 
 template<class T>
 void destroy(T &&x) {
