@@ -34,11 +34,11 @@ union AnyNode {
 
     HashNode *hash();
 
-    bool insertChild(uint8_t *key, unsigned int keyLength, AnyNode *child);
+    bool insertChild(std::span<uint8_t> key, PID child);
 
     bool innerRequestSpaceFor(unsigned keyLen);
 
-    PID lookupInner(uint8_t *key, unsigned keyLength);
+    PID lookupInner(std::span<uint8_t> key);
 
     static GuardX<AnyNode> makeRoot(PID child);
 
@@ -56,7 +56,7 @@ union AnyNode {
 
     unsigned innerKeyLen(unsigned index);
 
-    bool splitNodeWithParent(AnyNode *parent, uint8_t *key, unsigned keyLength);
+    bool splitNodeWithParent(AnyNode *parent, std::span<uint8_t> key);
 
     void nodeCount(unsigned counts[TAG_END]);
 };

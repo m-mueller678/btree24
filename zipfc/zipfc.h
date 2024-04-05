@@ -10,6 +10,10 @@ struct ZipfcRng;
 struct Key {
     uint8_t *data;
     uint64_t len;
+
+    std::span<uint8_t> span() {
+        return {data, len};
+    }
 };
 
 Key *zipfc_load_keys(ZipfcRng *rng, const char *name, uint32_t count, double density, uint32_t partition_count);

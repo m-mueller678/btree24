@@ -29,7 +29,7 @@ struct DataStructureWrapper {
         return lookup(key, keyLength, ignore) != nullptr;
     }
 
-    void insert(uint8_t *key, unsigned keyLength, uint8_t *payload, unsigned payloadLength);
+    void insert(std::span<uint8_t> key, std::span<uint8_t> payload);
 
     bool remove(uint8_t *key, unsigned keyLength);
 

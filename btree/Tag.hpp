@@ -25,10 +25,6 @@ struct RangeOpCounter {
     std::atomic<uint8_t> count;
     static constexpr uint8_t MAX_COUNT = 3;
 
-    thread_local static std::bernoulli_distribution range_dist;
-    thread_local static std::bernoulli_distribution point_dist;
-    thread_local static std::minstd_rand rng;
-
     RangeOpCounter() { init(); }
 
     RangeOpCounter(RangeOpCounter const &other) : count(other.count.load(std::memory_order::relaxed)) {}
@@ -57,54 +53,20 @@ struct RangeOpCounter {
     static constexpr uint32_t RANGE_THRESHOLD = (std::minstd_rand::max() + 1) * 0.15;
     static constexpr uint32_t POINT_THRESHOLD = (std::minstd_rand::max() + 1) * 0.05;
 
-    void range_op() {
-        bool should_inc = false;
-        while (true) {
-            auto c = count.load(std::memory_order_relaxed);
-            if (count < MAX_COUNT) {
-                if (!should_inc) {
-                    should_inc = rng() < RANGE_THRESHOLD;
-                }
-                if (!should_inc) { break; }
-                if (should_inc) {
-                    if (count.compare_exchange_weak(c, c + 1, std::memory_order_relaxed, std::memory_order_relaxed)) {
-                        break;
-                    } else {
-                        continue;
-                    }
-                }
-            } else {
-                break;
-            }
-        }
+    void range_op();
 
-
-    }
-
-    void point_op() {
-        bool should_dec = false;
-        while (true) {
-            auto c = count.load(std::memory_order_relaxed);
-            if (std::int8_t(count) > 0) {
-                if (!should_dec) {
-                    should_dec = rng() < POINT_THRESHOLD;
-                }
-                if (!should_dec) { break; }
-                if (should_dec) {
-                    if (count.compare_exchange_weak(c, c + 1, std::memory_order_relaxed, std::memory_order_relaxed)) {
-                        break;
-                    } else {
-                        continue;
-                    }
-                }
-            } else {
-                break;
-            }
-        }
-    }
+    void point_op();
 
     bool isLowRange() {
         return count.load(std::memory_order_relaxed) <= MAX_COUNT / 2;
+    }
+
+    bool shouldConvertHash() {
+        return count == 0;
+    }
+
+    bool shouldConvertBasic() {
+        return count == MAX_COUNT;
     }
 };
 

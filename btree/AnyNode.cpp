@@ -49,3 +49,104 @@ GuardX<AnyNode> AnyNode::allocLeaf() {
 GuardX<AnyNode> AnyNode::allocInner() {
     return GuardX<AnyNode>::alloc();
 }
+
+bool AnyNode::isAnyInner() {
+    return isInner(tag());
+}
+
+
+PID AnyNode::lookupInner(std::span<uint8_t> key) {
+    switch (tag()) {
+        case Tag::Inner:
+            return basic()->lookupInner(key);
+        case Tag::Leaf:
+        case Tag::Hash:
+        case Tag::Dense:
+        case Tag::Dense2:
+            ASSUME(false);
+    }
+    ASSUME(false);
+}
+
+
+bool AnyNode::innerRequestSpaceFor(unsigned keyLen) {
+    switch (tag()) {
+        case Tag::Inner: {
+            return basic()->requestSpaceFor(basic()->spaceNeeded(keyLen, sizeof(PID)));
+        }
+        case Tag::Leaf:
+        case Tag::Hash:
+        case Tag::Dense:
+        case Tag::Dense2:
+            ASSUME(false);
+    }
+    ASSUME(false);
+}
+
+bool AnyNode::splitNodeWithParent(AnyNode *parent, std::span<uint8_t> key) {
+    Tag tag = this->tag();
+    switch (tag) {
+        case Tag::Leaf:
+            if (enableDensifySplit) {
+                uint8_t sepBuffer[BTreeNode::maxKVSize];
+                TODO_UNIMPL
+//                auto sep = DenseNode::densifySplit(sepBuffer, basic());
+//                if (sep.lowerCount != 0) {
+//                    if (parent->innerRequestSpaceFor(sep.fenceLen)) {
+//                        bool found;
+//                        unsigned index = basic()->lowerBound(std::span{sepBuffer, sep.fenceLen}, found);
+//                        assert(sep.lowerCount == index + found);
+//                        basic()->splitNode(parent, sep.lowerCount - 1, sepBuffer, sep.fenceLen);
+//                        return true;
+//                    } else {
+//                        return false;
+//                    }
+//                }
+            }
+            // continue with normal node split
+        case Tag::Inner: {
+            SeparatorInfo sepInfo = basic()->findSeparator();
+            if (parent->innerRequestSpaceFor(
+                    sepInfo.length)) {  // is there enough space in the parent for the separator?
+                uint8_t sepKey[sepInfo.length];
+                basic()->getSep(sepKey, sepInfo);
+                basic()->splitNode(parent, sepInfo.slot, sepKey, sepInfo.length);
+                return true;
+            } else {
+                return false;
+            }
+        }
+        case Tag::Dense:
+        case Tag::Dense2: {
+            TODO_UNIMPL
+        }
+        case Tag::Hash: {
+            TODO_UNIMPL
+        }
+    }
+    ASSUME(false);
+}
+
+
+GuardX<AnyNode> AnyNode::makeRoot(PID child) {
+    auto new_root = allocInner();
+    new_root->_basic_node.init(false, RangeOpCounter{});
+    new_root->basic()->upper = child;
+    return new_root;
+}
+
+AnyNode::AnyNode() {}
+
+bool AnyNode::insertChild(std::span<uint8_t> key, PID child) {
+    switch (tag()) {
+        case Tag::Inner:
+            return basic()->insertChild(key, child);
+        case Tag::Leaf:
+        case Tag::Hash:
+        case Tag::Dense:
+        case Tag::Dense2:
+            ASSUME(false);
+    }
+    ASSUME(false);
+}
+

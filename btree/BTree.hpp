@@ -11,11 +11,11 @@ struct BTree {
 
     ~BTree();
 
-    PID metadata_pid;
+    PID metadataPid;
 
     bool lookupImpl(uint8_t *key, unsigned keyLength, unsigned &payloadSizeOut, uint8_t *payloadOut);
 
-    void insertImpl(uint8_t *key, unsigned keyLength, uint8_t *payload, unsigned payloadLength);
+    void insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload);
 
     bool removeImpl(uint8_t *key, unsigned int keyLength) const;
 
@@ -29,9 +29,9 @@ struct BTree {
                                uint8_t *keyOut,
                                const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
 
-    void splitNode(Page node, Page *parent, uint8_t *key, unsigned keyLength);
+    void trySplit(GuardX<AnyNode> node, GuardX<AnyNode> parent, std::span<uint8_t> key);
 
-    void ensureSpace(Page *toSplit, uint8_t *key, unsigned keyLength);
+    void ensureSpace(PID innerNode, std::span<uint8_t> key);
 };
 
 

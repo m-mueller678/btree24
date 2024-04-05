@@ -28,7 +28,7 @@ BufferManager::BufferManager() : virtSize(envOr("VIRTGB", 16) * gb), physSize(en
     const char *path = getenv("BLOCK") ? getenv("BLOCK") : "/tmp/bm";
     blockfd = open(path, O_RDWR | O_DIRECT, S_IRWXU);
     if (blockfd == -1) {
-        cerr << "cannot open BLOCK device '" << path << "'" << endl;
+        std::cerr << "cannot open BLOCK device '" << path << "'" << std::endl;
         exit(EXIT_FAILURE);
     }
     u64 virtAllocSize = virtSize + (1 << 16); // we allocate 64KB extra to prevent segfaults during optimistic reads
@@ -57,8 +57,8 @@ BufferManager::BufferManager() : virtSize(envOr("VIRTGB", 16) * gb), physSize(en
     writeCount = 0;
     batch = envOr("BATCH", 64);
 
-    cerr << "vmcache " << "blk:" << path << " virtgb:" << virtSize / gb << " physgb:" << physSize / gb << " exmap:"
-         << useExmap << endl;
+    std::cerr << "vmcache " << "blk:" << path << " virtgb:" << virtSize / gb << " physgb:" << physSize / gb << " exmap:"
+              << useExmap << std::endl;
 }
 
 void BufferManager::ensureFreePages() {
@@ -72,7 +72,7 @@ Page *BufferManager::allocPage() {
     ensureFreePages();
     u64 pid = allocCount++;
     if (pid >= virtCount) {
-        cerr << "VIRTGB is too low" << endl;
+        std::cerr << "VIRTGB is too low" << std::endl;
         exit(EXIT_FAILURE);
     }
     u64 stateAndVersion = getPageState(pid).stateAndVersion;
@@ -162,9 +162,9 @@ void BufferManager::readPage(PID pid) {
 }
 
 void BufferManager::evict() {
-    vector<PID> toEvict;
+    std::vector<PID> toEvict;
     toEvict.reserve(batch);
-    vector<PID> toWrite;
+    std::vector<PID> toWrite;
     toWrite.reserve(batch);
 
     // 0. find candidates, lock dirty ones in shared mode

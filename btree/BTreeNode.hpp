@@ -68,7 +68,7 @@ struct BTreeNode : public BTreeNodeHeader {
 
     std::span<uint8_t> getUpperFence();
 
-    uint8_t *getPrefix();
+    std::span<uint8_t> getPrefix();
 
     unsigned freeSpace();
 
@@ -94,16 +94,16 @@ struct BTreeNode : public BTreeNodeHeader {
     void searchHint(uint32_t keyHead, unsigned &lowerOut, unsigned &upperOut);
 
     // lower bound search, foundOut indicates if there is an exact match, returns slotId
-    unsigned lowerBound(uint8_t *key, unsigned keyLength, bool &foundOut);
+    unsigned lowerBound(std::span<uint8_t> key, bool &foundOut);
 
     // lowerBound wrapper ignoring exact match argument (for convenience)
-    unsigned lowerBound(uint8_t *key, unsigned keyLength);
+    unsigned lowerBound(std::span<uint8_t> key);
 
-    bool insert(uint8_t *key, unsigned keyLength, uint8_t *payload, unsigned payloadLength);
+    bool insert(std::span<uint8_t> key, std::span<uint8_t> payload);
 
     void removeSlot(unsigned slotId);
 
-    bool remove(uint8_t *key, unsigned keyLength);
+    bool remove(std::span<uint8_t> key);
 
     void compactify();
 
@@ -111,15 +111,15 @@ struct BTreeNode : public BTreeNodeHeader {
     bool mergeNodes(unsigned slotId, AnyNode *parent, BTreeNode *right);
 
     // store key/value pair at slotId
-    void storeKeyValue(uint16_t slotId, uint8_t *key, unsigned keyLength, uint8_t *payload, unsigned payloadLength);
+    void storeKeyValue(uint16_t slotId, std::span<uint8_t> key, std::span<uint8_t> payload);
 
     void copyKeyValueRange(BTreeNode *dst, uint16_t dstSlot, uint16_t srcSlot, unsigned srcCount);
 
     void copyKeyValue(uint16_t srcSlot, BTreeNode *dst, uint16_t dstSlot);
 
-    void insertFence(FenceKeySlot &fk, uint8_t *key, unsigned keyLength);
+    void insertFence(FenceKeySlot &slot, std::span<uint8_t> fence);
 
-    void setFences(uint8_t *lowerKey, unsigned lowerLen, uint8_t *upperKey, unsigned upperLen);
+    void setFences(std::span<uint8_t> lower, std::span<uint8_t> upper);
 
     void splitNode(AnyNode *parent, unsigned sepSlot, uint8_t *sepKey, unsigned sepLength);
 
@@ -129,7 +129,7 @@ struct BTreeNode : public BTreeNodeHeader {
 
     void getSep(uint8_t *sepKeyOut, SeparatorInfo info);
 
-    PID lookupInner(uint8_t *key, unsigned keyLength);
+    PID lookupInner(std::span<std::uint8_t> key);
 
     void destroy();
 
@@ -137,7 +137,7 @@ struct BTreeNode : public BTreeNodeHeader {
 
     bool is_underfull();
 
-    bool insertChild(uint8_t *key, unsigned int keyLength, PID child);
+    bool insertChild(std::span<uint8_t> key, PID child);
 
     bool range_lookup(uint8_t *key,
                       unsigned int keyLen,
@@ -148,7 +148,7 @@ struct BTreeNode : public BTreeNodeHeader {
 
     void print();
 
-    void restoreKey(uint8_t *keyOut, unsigned len, unsigned index);
+    void restoreKeyExclusive(std::span<uint8_t> keyOut, unsigned index);
 
     void validateHint();
 

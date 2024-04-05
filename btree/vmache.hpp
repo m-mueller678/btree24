@@ -27,9 +27,6 @@
 #include "config.hpp"
 #include "Tag.hpp"
 
-
-using namespace std;
-
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
@@ -48,10 +45,10 @@ static const int16_t maxWorkerThreads = 128;
 void *allocHuge(size_t size);
 
 // use when lock is not free
-void yield(u64 counter);
+void yield(u64 counter = 0);
 
 struct PageState {
-    atomic<u64> stateAndVersion;
+    std::atomic<u64> stateAndVersion;
 
     static const u64 Unlocked = 0;
     static const u64 MaxShared = 252;
@@ -127,13 +124,13 @@ struct ResidentPageSet {
     static const u64 tombstone = (~0ull) - 1;
 
     struct Entry {
-        atomic<u64> pid;
+        std::atomic<u64> pid;
     };
 
     Entry *ht;
     u64 count;
     u64 mask;
-    atomic<u64> clockPos;
+    std::atomic<u64> clockPos;
 
     ResidentPageSet(u64 maxCount);
 
@@ -242,7 +239,7 @@ struct LibaioInterface {
         }
     }
 
-    void writePages(const vector<PID> &pages) {
+    void writePages(const std::vector<PID> &pages) {
         assert(pages.size() < maxIOs);
         for (u64 i = 0; i < pages.size(); i++) {
             PID pid = pages[i];
@@ -265,18 +262,18 @@ struct BufferManager {
     u64 virtCount;
     u64 physCount;
     struct exmap_user_interface *exmapInterface[maxWorkerThreads];
-    vector<LibaioInterface> libaioInterface;
+    std::vector<LibaioInterface> libaioInterface;
 
     bool useExmap;
     int blockfd;
     int exmapfd;
 
-    atomic<u64> physUsedCount;
+    std::atomic<u64> physUsedCount;
     ResidentPageSet residentSet;
-    atomic<u64> allocCount;
+    std::atomic<u64> allocCount;
 
-    atomic<u64> readCount;
-    atomic<u64> writeCount;
+    std::atomic<u64> readCount;
+    std::atomic<u64> writeCount;
 
     Page *virtMem;
     PageState *pageState;
@@ -426,6 +423,11 @@ struct GuardO {
         return ptr;
     }
 
+    void release_ignore() {
+        pid = moved;
+        ptr = nullptr;
+    }
+
     void release() {
         checkVersionAndRestart();
         pid = moved;
@@ -451,7 +453,7 @@ struct GuardX {
     // constructor
     explicit GuardX(u64 pid) : pid(pid) {
         ptr = reinterpret_cast<T *>(bm.fixX(pid));
-        ptr->dirty = true;
+        reinterpret_cast<Page *>(ptr)->tagAndDirty.set_dirty(true);
     }
 
     explicit GuardX(GuardO<T> &&other) {
@@ -466,7 +468,7 @@ struct GuardX {
                 if (ps.tryLockX(stateAndVersion)) {
                     pid = other.pid;
                     ptr = other.ptr;
-                    ptr->dirty = true;
+                    reinterpret_cast<Page *>(ptr)->tagAndDirty.set_dirty(true);
                     other.pid = moved;
                     other.ptr = nullptr;
                     return;
