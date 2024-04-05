@@ -164,6 +164,10 @@ int main(int argc, char *argv[]) {
     unsigned payloadSize = envu64("PAYLOAD_SIZE");
     unsigned opCount = envu64("OP_COUNT");
     unsigned threadCount = envu64("THREADS");
+#ifdef CHECK_TREE_OPS
+    std::cout << "CHECK_TREE_OPS enabled, forcing single threaded" << std::endl;
+    threadCount = 1;
+#endif
     double zipfParameter = envf64("ZIPF");
     double intDensity = envf64("DENSITY");
     uint64_t ycsb_variant = envu64("YCSB_VARIANT");
