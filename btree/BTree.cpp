@@ -46,7 +46,7 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
             }
 
             GuardX<AnyNode> nodeLocked{std::move(node)};
-            switch (node->tag()) {
+            switch (nodeLocked->tag()) {
                 case Tag::Leaf: {
                     nodeLocked->basic()->rangeOpCounter.point_op();
                     if (nodeLocked->basic()->rangeOpCounter.shouldConvertHash()) { TODO_UNIMPL }
