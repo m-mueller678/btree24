@@ -76,6 +76,12 @@ void BTreeNode::init(bool isLeaf, RangeOpCounter roc) {
 void BTreeNodeHeader::init(bool isLeaf, RangeOpCounter roc) {
     set_tag(isLeaf ? Tag::Leaf : Tag::Inner);
     rangeOpCounter = roc;
+    count = 0;
+    spaceUsed = 0;
+    dataOffset = (isLeaf ? pageSizeLeaf : pageSizeInner);
+    lowerFence = {};
+    upperFence = {};
+    upper = 0;
 }
 
 uint8_t *BTreeNode::ptr() {
@@ -419,7 +425,8 @@ unsigned BTreeNode::commonPrefix(unsigned slotA, unsigned slotB) {
 void BTreeNode::restoreKeyExclusive(std::span<uint8_t> keyOut, unsigned index) {
     ASSUME(enablePrefix || prefixLength == 0);
     auto key = getKey(index);
-    ASSUME(prefixLength + key.size() == keyOut.size());
+    ASSUME(keyOut.size() <= prefixLength + key.size());
+    ASSUME(keyOut.size() > prefixLength);
     memcpy(keyOut.data(), getPrefix().data(), prefixLength);
     memcpy(keyOut.data() + prefixLength, getKey(index).data(), keyOut.size() - prefixLength);
 }

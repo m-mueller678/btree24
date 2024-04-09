@@ -36,3 +36,15 @@ if (NOT LIBAIO_LIBRARY)
     message(FATAL_ERROR "libaio library not found")
 endif ()
 target_link_libraries(btree24 PRIVATE ${LIBAIO_LIBRARY})
+
+
+option(check_tree_ops "set CHECK_TREE_OPS" OFF)
+IF (check_tree_ops)
+    target_compile_definitions(btree24 PRIVATE CHECK_TREE_OPS=1)
+ENDIF (check_tree_ops)
+
+option(asan "enable asan" OFF)
+IF (asan)
+    add_compile_options(-fsanitize=address)
+    add_link_options(-fsanitize=address)
+ENDIF (asan)

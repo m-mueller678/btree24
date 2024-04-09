@@ -12,21 +12,21 @@ struct BTreeNodeHeader : public TagAndDirty {
     static constexpr unsigned underFullSizeLeaf = pageSizeLeaf / 4;    // merge nodes below this size
     static constexpr unsigned underFullSizeInner = pageSizeInner / 4;  // merge nodes below this size
 
-    uint16_t count = 0;
-    uint16_t spaceUsed = 0;
+    uint16_t count;
+    uint16_t spaceUsed;
     uint16_t dataOffset;
 
     struct FenceKeySlot {
-        uint16_t offset;
-        uint16_t length;
+        uint16_t offset = 0;
+        uint16_t length = 0;
     };
 
-    PID upper = 0;  // only used in inner nodes
+    PID upper;  // only used in inner nodes
 
-    FenceKeySlot lowerFence = {0, 0};  // exclusive
-    FenceKeySlot upperFence = {0, 0};  // inclusive
+    FenceKeySlot lowerFence;  // exclusive
+    FenceKeySlot upperFence;  // inclusive
 
-    uint16_t prefixLength = 0;
+    uint16_t prefixLength;
 
     uint32_t hint[hintCount];
 

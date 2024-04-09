@@ -57,6 +57,7 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
                         parent.release_ignore();
                         return;
                     }
+                    break;
                 }
                 case Tag::Dense:
                 case Tag::Dense2: {

@@ -11,9 +11,3 @@ add_custom_target(
 add_dependencies(zipfc zipfc_cargo)
 target_link_libraries(zipfc PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/cargo_target/release/libzipfc.a)
 target_include_directories(zipfc PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-
-option(check_tree_ops "set CHECK_TREE_OPS" OFF)
-IF (check_tree_ops)
-    target_compile_definitions(btree24 PRIVATE CHECK_TREE_OPS=1)
-ENDIF (check_tree_ops)

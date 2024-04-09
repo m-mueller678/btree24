@@ -14,6 +14,8 @@ use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader};
 use std::mem::{size_of, MaybeUninit};
 use std::slice::from_raw_parts;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::Relaxed;
 use zipf::ZipfDistribution;
 
 unsafe impl Send for Key {}
@@ -24,6 +26,15 @@ unsafe impl Sync for Key {}
 pub struct Key {
     data: *const u8,
     len: u64,
+}
+
+fn init_rayon(){
+    static INIT:AtomicBool=AtomicBool::new(false);
+    if !INIT.swap(true,Relaxed){
+        rayon::ThreadPoolBuilder::new()
+            .thread_name(|i|format!("rayon worker {i}"))
+            .build_global().unwrap()
+    }
 }
 
 impl Debug for Key {
@@ -56,6 +67,7 @@ pub unsafe extern "C" fn zipfc_load_keys(
     int_density: f64,
     partition_count: u32,
 ) -> *const Key {
+    init_rayon();
     assert!(int_density <= 1.0);
     assert!(int_density >= 0.05);
     let name = CStr::from_ptr(name);
@@ -155,6 +167,7 @@ pub unsafe extern "C" fn create_zipfc_rng(
     thread: u64,
     purpose: *const c_char,
 ) -> *mut MainRng {
+    init_rayon();
     let purpose = CStr::from_ptr(purpose);
     let long_seed = (0..4)
         .flat_map(|i| {
@@ -176,6 +189,7 @@ pub unsafe extern "C" fn generate_workload_c(
     zipf_parameter: f64,
     count: u32,
 ) -> *const u32 {
+    init_rayon();
     let rng = &mut *rng;
     let mut out = Vec::with_capacity(count as usize);
     fill_zipf(
