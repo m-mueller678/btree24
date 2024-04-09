@@ -94,6 +94,11 @@ bool BTreeNode::insertChild(std::span<uint8_t> key, PID child) {
 }
 
 bool BTreeNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
+    assert(key.size() >= prefixLength);
+    assert(span_compare(getPrefix(), key.subspan(0, prefixLength)) == 0);
+    assert(span_compare(getLowerFence(), key) <= 0);
+    assert(span_compare(key, getUpperFence()) < 0 || getUpperFence().empty());
+
     if (!requestSpaceFor(spaceNeeded(key.size(), payload.size()))) {
         AnyNode tmp;
         bool densify1 = enableDense && tag() == Tag::Leaf && key.size() - prefixLength == slot[0].keyLen &&

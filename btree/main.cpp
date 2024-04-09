@@ -168,7 +168,7 @@ int main(int argc, char *argv[]) {
     unsigned opCount = envu64("OP_COUNT");
     unsigned threadCount = envu64("THREADS");
 #ifdef CHECK_TREE_OPS
-    std::cout << "CHECK_TREE_OPS enabled, forcing single threaded" << std::endl;
+    std::cerr << "CHECK_TREE_OPS enabled, forcing single threaded" << std::endl;
     threadCount = 1;
 #endif
     double zipfParameter = envf64("ZIPF");

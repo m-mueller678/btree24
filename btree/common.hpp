@@ -49,4 +49,6 @@ inline unsigned max(unsigned a, unsigned b) {
     return a < b ? b : a;
 }
 
+std::strong_ordering span_compare(std::span<uint8_t> a, std::span<uint8_t> b);
+
 #endif //BTREE24_COMMON_HPP

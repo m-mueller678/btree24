@@ -109,6 +109,7 @@ bool AnyNode::splitNodeWithParent(AnyNode *parent, std::span<uint8_t> key) {
             if (parent->innerRequestSpaceFor(
                     sepInfo.length)) {  // is there enough space in the parent for the separator?
                 uint8_t sepKey[sepInfo.length];
+                assert(basic()->count > 1);
                 basic()->getSep(sepKey, sepInfo);
                 basic()->splitNode(parent, sepInfo.slot, sepKey, sepInfo.length);
                 return true;

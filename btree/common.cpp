@@ -36,3 +36,7 @@ uint32_t head(std::span<uint8_t> key) {
             return __builtin_bswap32(loadUnaligned<uint32_t>(key.data()));
     }
 }
+
+std::strong_ordering span_compare(std::span<uint8_t> a, std::span<uint8_t> b) {
+    return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
+}
