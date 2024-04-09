@@ -45,22 +45,20 @@ struct HashNode : public HashNodeHeader {
 
     uint8_t *hashes();
 
-    uint8_t *getPayload(unsigned int slotId);
+    std::span<uint8_t> slice(uint16_t offset, uint16_t len);
 
-    uint8_t *getKey(unsigned int slotId);
+    std::span<uint8_t> getKey(unsigned slotId);
 
-    void init(uint8_t *lowerFence,
-              unsigned int lowerFenceLen,
-              uint8_t *upperFence,
-              unsigned int upperFenceLen,
-              unsigned hashCapacity,
-              RangeOpCounter roc);
+    std::span<uint8_t> getPayload(unsigned slotId);
+
+    void
+    init(std::span<uint8_t> lowerFence, std::span<uint8_t> upperFence, unsigned int hashCapacity, RangeOpCounter roc);
 
     static GuardX<AnyNode> makeRootLeaf();
 
-    uint8_t *getLowerFence();
+    std::span<uint8_t> getLowerFence();
 
-    uint8_t *getUpperFence();
+    std::span<uint8_t> getUpperFence();
 
     void updatePrefixLength();
 
