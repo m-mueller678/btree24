@@ -48,6 +48,7 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
                 node = GuardO<AnyNode>(parent->lookupInner(key), parent);
             }
 
+            parent.checkVersionAndRestart();
             GuardX<AnyNode> nodeLocked{std::move(node)};
             switch (nodeLocked->tag()) {
                 case Tag::Leaf: {
