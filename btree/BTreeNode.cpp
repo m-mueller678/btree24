@@ -289,11 +289,11 @@ void BTreeNode::copyKeyValueRange(BTreeNode *dst, uint16_t dstSlot, uint16_t src
             dst->spaceUsed += space;
             dst->slot[dstSlot + i].offset = dst->dataOffset;
             uint8_t *key = getKey(srcSlot + i).data() + diff;
+            dst->slot[dstSlot + i].keyLen = newKeyLength;
+            dst->slot[dstSlot + i].payloadLen = slot[srcSlot + i].payloadLen;
             memcpy(dst->getKey(dstSlot + i).data(), key, space);
             if (enableBasicHead)
                 dst->slot[dstSlot + i].head[0] = head({key, newKeyLength});
-            dst->slot[dstSlot + i].keyLen = newKeyLength;
-            dst->slot[dstSlot + i].payloadLen = slot[srcSlot + i].payloadLen;
         }
     } else {
         for (unsigned i = 0; i < srcCount; i++)

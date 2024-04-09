@@ -86,10 +86,11 @@ void BTree::trySplit(GuardX<AnyNode> node, GuardX<AnyNode> parent, std::span<uin
         parent = std::move(newRoot);
     }
     if (!node->splitNodeWithParent(parent.ptr, key)) {
+        auto parentPid = parent.pid;
         parent.release();
         node.release();
         // must split parent first to make space for separator, restart from root to do this
-        ensureSpace(parent.pid, key);
+        ensureSpace(parentPid, key);
     }
 }
 
