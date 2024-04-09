@@ -433,5 +433,6 @@ bool BTreeNode::lookupLeaf(std::span<uint8_t> key, std::span<uint8_t> &valueOut)
     if (payload.size() > maxKVSize)
         throw OLCRestartException();
     memcpy(valueOut.data(), payload.data(), payload.size());
+    valueOut = {valueOut.data(), payload.size()};
     return true;
 }

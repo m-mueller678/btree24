@@ -113,23 +113,26 @@ static void runMulti(BTreeCppPerfEvent e,
     }
     {
         barrier.arrive_and_wait();
-        // pre insert
+        //pre insert
+        barrier.arrive_and_wait();
         {
-            barrier.arrive_and_wait();
             e.setParam("op", "insert90");
             BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
             barrier.arrive_and_wait();
+            // insert
+            barrier.arrive_and_wait();
         }
         {
-            barrier.arrive_and_wait();
             e.setParam("op", "ycsb_c");
             BTreeCppPerfEventBlock b(e, t, opCountC);
             barrier.arrive_and_wait();
+            // insert
+            barrier.arrive_and_wait();
         }
         {
-            barrier.arrive_and_wait();
             e.setParam("op", "ycsb_e");
             BTreeCppPerfEventBlock b(e, t, opCountE);
+            barrier.arrive_and_wait();
             barrier.arrive_and_wait();
         }
     }

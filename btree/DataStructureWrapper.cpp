@@ -29,8 +29,9 @@ bool DataStructureWrapper::lookup(std::span<uint8_t> key, std::span<uint8_t> &va
     auto std_found = std_map.find(toByteVector(key));
     assert(found == (std_found != std_map.end()));
     if (found) {
-        assert(valueOut.size() == std_found->second.size());
-        assert(memcmp(std_found->second.data(), valueOut.data(), valueOut.size()) == 0);
+        auto &std_found_val = std_found->second;
+        assert(valueOut.size() == std_found_val.size());
+        assert(memcmp(std_found_val.data(), valueOut.data(), valueOut.size()) == 0);
     }
 #endif
     return found;

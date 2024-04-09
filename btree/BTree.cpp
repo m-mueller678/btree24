@@ -16,7 +16,10 @@ struct MetaDataPage : public TagAndDirty {
 
 
 BTree::~BTree() {
-    abort();
+    static std::atomic<uint32_t> TREES_DESTROYED = 0;
+    if (TREES_DESTROYED.fetch_add(1) > 1) {
+        abort();
+    }
 }
 
 // take isInt to have same interface as in memory structures, but ignore it.
