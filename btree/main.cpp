@@ -124,14 +124,14 @@ static void runMulti(BTreeCppPerfEvent e,
         }
         {
             e.setParam("op", "ycsb_c");
-            BTreeCppPerfEventBlock b(e, t, opCountC);
+            BTreeCppPerfEventBlock b(e, t, opCountC * threadCount);
             barrier.arrive_and_wait();
             // insert
             barrier.arrive_and_wait();
         }
         {
             e.setParam("op", "ycsb_e");
-            BTreeCppPerfEventBlock b(e, t, opCountE);
+            BTreeCppPerfEventBlock b(e, t, opCountE * threadCount);
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
         }
