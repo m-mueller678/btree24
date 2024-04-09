@@ -31,7 +31,7 @@ GuardX<AnyNode> BTreeNode::makeLeaf() {
 }
 
 std::span<uint8_t> BTreeNode::getLowerFence() {
-    return slice(upperFence.offset, upperFence.length);
+    return slice(lowerFence.offset, lowerFence.length);
 }
 
 std::span<uint8_t> BTreeNode::getUpperFence() {
@@ -263,6 +263,7 @@ void BTreeNode::compactify() {
 }
 
 void BTreeNode::setFences(std::span<uint8_t> lower, std::span<uint8_t> upper) {
+    assert(upper.empty() || std::lexicographical_compare(lower.begin(), lower.end(), upper.begin(), upper.end()));
     insertFence(lowerFence, lower);
     insertFence(upperFence, upper);
     for (prefixLength = 0; enablePrefix && (prefixLength < min(lower.size(), upper.size())) &&
