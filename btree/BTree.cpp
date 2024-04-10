@@ -65,7 +65,9 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
                     TODO_UNIMPL
                 }
                 case Tag::Hash: {
-                    TODO_UNIMPL
+                    if (node->hash()->insert(key, payload)) {
+                        return;
+                    }
                 }
                 default:
                     ASSUME(false);

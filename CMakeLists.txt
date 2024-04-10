@@ -48,3 +48,7 @@ IF (asan)
     add_compile_options(-fsanitize=address)
     add_link_options(-fsanitize=address)
 ENDIF (asan)
+
+if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "You probably want to use clang to compile this, as gcc does not support some SIMD stuff we use in HashLeaf")
+endif ()

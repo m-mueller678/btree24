@@ -40,3 +40,12 @@ uint32_t head(std::span<uint8_t> key) {
 std::strong_ordering span_compare(std::span<uint8_t> a, std::span<uint8_t> b) {
     return std::lexicographical_compare_three_way(a.begin(), a.end(), b.begin(), b.end());
 }
+
+unsigned commonPrefixLength(std::span<uint8_t> a, std::span<uint8_t> b) {
+    unsigned limit = min(a.size(), b.size());
+    unsigned i;
+    for (i = 0; i < limit; i++)
+        if (a[i] != b[i])
+            break;
+    return i;
+}

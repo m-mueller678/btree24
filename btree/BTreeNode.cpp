@@ -418,13 +418,8 @@ void BTreeNode::splitNode(AnyNode *parent, unsigned sepSlot, uint8_t *sepKey, un
 
 unsigned BTreeNode::commonPrefix(unsigned slotA, unsigned slotB) {
     assert(slotA < count);
-    std::span<uint8_t> a = getKey(slotA), b = getKey(slotB);
-    unsigned limit = min(a.size(), b.size());
-    unsigned i;
-    for (i = 0; i < limit; i++)
-        if (a[i] != b[i])
-            break;
-    return i;
+    assert(slotB < count);
+    return commonPrefixLength(getKey(slotA), getKey(slotB));
 }
 
 

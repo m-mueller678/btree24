@@ -37,13 +37,13 @@ struct HashNode : public HashNodeHeader {
 
     unsigned estimateCapacity();
 
-    uint8_t *lookup(uint8_t *key, unsigned keyLength, unsigned &payloadSizeOut);
+    bool lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut);
 
-    static uint8_t compute_hash(uint8_t *key, unsigned int keyLength);
+    static uint8_t compute_hash(std::span<uint8_t> key);
 
     uint8_t *ptr();
 
-    uint8_t *hashes();
+    std::span<uint8_t> hashes();
 
     std::span<uint8_t> slice(uint16_t offset, uint16_t len);
 
@@ -62,9 +62,9 @@ struct HashNode : public HashNodeHeader {
 
     void updatePrefixLength();
 
-    bool insert(uint8_t *key, unsigned int keyLength, uint8_t *payload, unsigned int payloadLength);
+    bool insert(std::span<uint8_t> key, std::span<uint8_t> payload);
 
-    int findIndex(uint8_t *key, unsigned keyLength, uint8_t hash);
+    int findIndex(std::span<uint8_t> key, uint8_t hash);
 
     unsigned int freeSpace();
 
@@ -84,7 +84,7 @@ struct HashNode : public HashNodeHeader {
 
     void getSep(uint8_t *sepKeyOut, SeparatorInfo info);
 
-    void splitNode(AnyNode *parent, unsigned int sepSlot, uint8_t *sepKey, unsigned int sepLength);
+    void splitNode(AnyNode *parent, unsigned int sepSlot, std::span<uint8_t> sepKey);
 
     AnyNode *any() { return reinterpret_cast<AnyNode *>(this); }
 
@@ -92,8 +92,7 @@ struct HashNode : public HashNodeHeader {
 
     void copyKeyValue(unsigned srcSlot, HashNode *dst, unsigned dstSlot);
 
-    void storeKeyValue(unsigned int slotId, uint8_t *key, unsigned int keyLength, uint8_t *payload,
-                       unsigned int payloadLength, uint8_t hash);
+    void storeKeyValue(unsigned int slotId, std::span<uint8_t> key, std::span<uint8_t> payload, uint8_t hash);
 
     void copyKeyValueRange(HashNode *dst, unsigned int dstSlot, unsigned int srcSlot, unsigned int srcCount);
 
@@ -105,16 +104,16 @@ struct HashNode : public HashNodeHeader {
 
     void print();
 
-    bool range_lookup(uint8_t *key,
+    bool range_lookup(std::span<uint8_t> key,
                       unsigned int keyLen,
                       uint8_t *keyOut,
                       const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
 
     unsigned int lowerBound(uint8_t *key, unsigned int keyLength, bool &found);
 
-    int findIndexNoSimd(uint8_t *key, unsigned keyLength, uint8_t hash);
+    int findIndexNoSimd(std::span<uint8_t> key, uint8_t hash);
 
-    int findIndexSimd(uint8_t *key, unsigned keyLength, uint8_t hash);
+    int findIndexSimd(std::span<uint8_t> key, uint8_t hash);
 
     bool range_lookup_desc(uint8_t *key,
                            unsigned int keyLen,
