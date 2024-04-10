@@ -29,12 +29,12 @@ void HashNode::init(std::span<uint8_t> lowerFence, std::span<uint8_t> upperFence
     rangeOpCounter = roc;
     count = 0;
     sortedCount = 0;
-    spaceUsed = upperFenceLen + lowerFenceLen;
+    spaceUsed = upperFence.size() + lowerFence.size();
     dataOffset = pageSizeLeaf - spaceUsed - hashCapacity;
     hashOffset = dataOffset;
     this->hashCapacity = hashCapacity;
-    this->lowerFenceLen = lowerFenceLen;
-    this->upperFenceLen = upperFenceLen;
+    this->lowerFenceLen = lowerFence.size();
+    this->upperFenceLen = upperFence.size();
     copySpan(getLowerFence(), lowerFence);
     copySpan(getUpperFence(), upperFence);
     updatePrefixLength();
