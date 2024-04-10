@@ -122,7 +122,18 @@ bool AnyNode::splitNodeWithParent(AnyNode *parent, std::span<uint8_t> key) {
             TODO_UNIMPL
         }
         case Tag::Hash: {
-            TODO_UNIMPL
+            hash()->sort();
+            SeparatorInfo sepInfo = hash()->findSeparator();
+            if (parent->innerRequestSpaceFor(
+                    sepInfo.length)) {  // is there enough space in the parent for the separator?
+                uint8_t sepKey[sepInfo.length];
+                hash()->getSep(sepKey, sepInfo);
+                hash()->splitNode(parent, sepInfo.slot, {sepKey, sepInfo.length});
+                return true;
+            } else {
+                return false;
+            }
+            break;
         }
     }
     ASSUME(false);

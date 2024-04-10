@@ -342,3 +342,54 @@ void HashNode::copyKeyValue(unsigned srcSlot, HashNode *dst, unsigned dstSlot) {
     dst->storeKeyValue(dstSlot, {buffer, fullLength}, getPayload(srcSlot),
                        compute_hash({buffer + dst->prefixLength, fullLength - dst->prefixLength}));
 }
+
+
+void HashNode::sort() {
+    validate();
+    if (sortedCount == count)
+        return;
+    // TODO could preserve hashes with some effort
+    SlotProxy *slotProxy = reinterpret_cast<SlotProxy *>(slot);
+    sortNode = this;
+    std::sort(slotProxy + sortedCount, slotProxy + count);
+    std::inplace_merge(slotProxy, slotProxy + sortedCount, slotProxy + count);
+    for (unsigned i = 0; i < count; ++i) {
+        updateHash(i);
+    }
+    sortedCount = count;
+    validate();
+}
+
+void HashNode::splitNode(AnyNode *parent, unsigned sepSlot, std::span<std::uint8_t> sepKey) {
+    if (enableHashAdapt) {
+        bool goodHeads = hasGoodHeads();
+        if (goodHeads) {
+            rangeOpCounter.setGoodHeads();
+            TODO_UNIMPL //return splitToBasic(parent, sepSlot, sepKey);
+        } else if (!rangeOpCounter.isLowRange()) {
+            TODO_UNIMPL //return splitToBasic(parent, sepSlot, sepKey);
+        }
+    }
+    // split this node into nodeLeft and nodeRight
+    assert(sepSlot > 0);
+    auto nodeLeftAlloc = AnyNode::allocLeaf();
+    HashNode *nodeLeft = &nodeLeftAlloc->_hash;
+    unsigned capacity = estimateCapacity();
+    nodeLeft->init(getLowerFence(), sepKey, capacity, rangeOpCounter);
+    HashNode right;
+    right.init(sepKey, getUpperFence(), capacity, rangeOpCounter);
+    bool succ = parent->insertChild(sepKey, nodeLeftAlloc.pid);
+    assert(succ);
+    copyKeyValueRange(nodeLeft, 0, 0, sepSlot + 1);
+    copyKeyValueRange(&right, 0, nodeLeft->count, count - nodeLeft->count);
+    nodeLeft->sortedCount = nodeLeft->count;
+    right.sortedCount = right.count;
+    nodeLeft->validate();
+    right.validate();
+    memcpy(this, &right, pageSizeLeaf);
+}
+
+void HashNode::getSep(uint8_t *sepKeyOut, SeparatorInfo info) {
+    memcpy(sepKeyOut, getLowerFence().data(), prefixLength);
+    memcpy(sepKeyOut + prefixLength, getKey(info.slot + info.isTruncated).data(), info.length - prefixLength);
+}
