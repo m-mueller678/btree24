@@ -29,8 +29,7 @@ struct DenseSeparorInfo {
 };
 
 
-struct DenseNode {
-    Tag tag;
+struct DenseNode : TagAndDirty {
     uint16_t fullKeyLen;
     NumericPart arrayStart;
     union {

@@ -35,7 +35,7 @@ bool DenseNode::lookup(std::span<uint8_t> key, std::span<uint8_t> &payloadOut) {
     KeyError index = keyToIndex(key);
     if (index < 0)
         return false;
-    if (tag == Tag::Dense) {
+    if (tag() == Tag::Dense) {
         if (!isSlotPresent(index)) {
             return false;
         }
@@ -109,7 +109,7 @@ void DenseNode::copyKeyValueRangeToBasic(BTreeNode *dst, unsigned srcStart, unsi
                    reinterpret_cast<uint8_t *>(&numericPart) + sizeof(NumericPart) - truncatedNumericPartLen,
                    truncatedNumericPartLen);
         }
-        if (tag == Tag::Dense) {
+        if (tag() == Tag::Dense) {
             copySpan(dst->getPayload(outSlot), getValD1(i));
         } else {
             copySpan(dst->getPayload(outSlot), getValD2(i));
@@ -124,7 +124,7 @@ void DenseNode::copyKeyValueRangeToBasic(BTreeNode *dst, unsigned srcStart, unsi
 
 bool DenseNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
     ASSUME(key.size() >= prefixLength);
-    if (tag == Tag::Dense) {
+    if (tag() == Tag::Dense) {
         if (payload.size() != valLen || key.size() != fullKeyLen) {
             unsigned entrySize = occupiedCount * (fullKeyLen - prefixLength + payload.size() + sizeof(BTreeNode::Slot));
             if (entrySize + lowerFenceLen + upperFenceLen + sizeof(BTreeNodeHeader) <= pageSizeLeaf) {
@@ -296,7 +296,7 @@ unsigned DenseNode::computeNumericPrefixLength(unsigned fullKeyLen) {
 void DenseNode::changeLowerFence(std::span<uint8_t> lowerFence, std::span<uint8_t> upperFence) {
     assert(enablePrefix);
     assert(sizeof(DenseNode) == pageSizeLeaf);
-    tag = Tag::Dense;
+    set_tag(Tag::Dense);
     this->lowerFenceLen = lowerFence.size();
     occupiedCount = 0;
     slotCount = computeSlotCount(valLen, fencesOffset());
@@ -343,7 +343,7 @@ bool DenseNode::densify1(DenseNode *out, BTreeNode *basicNode) {
         if (lastOutsideRange)
             return false;
     }
-    out->tag = Tag::Dense;
+    out->set_tag(Tag::Dense);
     out->valLen = valLen1;
     out->occupiedCount = 0;
     out->zeroMask();
@@ -466,7 +466,7 @@ bool DenseNode::densify2(DenseNode *out, BTreeNode *from) {
         if (payloadSizeTooLarge)
             return false;
     }
-    out->tag = Tag::Dense2;
+    out->set_tag(Tag::Dense2);
     out->spaceUsed = 0;
     out->occupiedCount = 0;
     copySpan(out->getLowerFence(), from->getLowerFence());
@@ -520,7 +520,7 @@ unsigned DenseNode::maskWordCount() {
 }
 
 void DenseNode::zeroMask() {
-    ASSUME(tag == Tag::Dense);
+    ASSUME(tag() == Tag::Dense);
     unsigned mwc = maskWordCount();
     for (unsigned i = 0; i < mwc; ++i) {
         mask[i] = 0;
@@ -528,7 +528,7 @@ void DenseNode::zeroMask() {
 }
 
 void DenseNode::zeroSlots() {
-    ASSUME(tag == Tag::Dense2);
+    ASSUME(tag() == Tag::Dense2);
     for (unsigned i = 0; i < slotCount; ++i) {
         slots[i] = 0;
     }
@@ -592,7 +592,7 @@ unsigned DenseNode::computeSlotCount(unsigned valLen, unsigned fencesStart) {
 }
 
 bool DenseNode::remove(std::span<uint8_t> key) {
-    assert(tag == Tag::Dense);  // dense2 remove is not implemented
+    assert(tag() == Tag::Dense);  // dense2 remove is not implemented
     KeyError index = keyToIndex(key);
     if (index < 0 || !isSlotPresent(index)) {
         return false;
@@ -743,7 +743,7 @@ void DenseNode::unsetSlotPresent(unsigned i) {
 //}
 
 void DenseNode::print() {
-    printf("# DenseNode%d\n", tag == Tag::Dense ? 1 : 2);
+    printf("# DenseNode%d\n", tag() == Tag::Dense ? 1 : 2);
     printf("lower fence: ");
     printKey(getLowerFence());
     printf("\nupper fence: ");
@@ -751,7 +751,7 @@ void DenseNode::print() {
     uint8_t keyBuffer[fullKeyLen];
     printf("\n");
     for (unsigned i = 0; i < slotCount; ++i) {
-        if (tag == Tag::Dense ? isSlotPresent(i) : slots[i] != 0) {
+        if (tag() == Tag::Dense ? isSlotPresent(i) : slots[i] != 0) {
             printf("%d: ", i);
             restoreKey(arrayStart, fullKeyLen, getLowerFence().data(), keyBuffer, i);
             printKey({keyBuffer + prefixLength, static_cast<uint16_t>(fullKeyLen - prefixLength)});
