@@ -245,7 +245,7 @@ void HashNode::compactify(unsigned newHashCapacity) {
 
 
 void HashNode::copyKeyValueRange(HashNode *dst, unsigned dstSlot, unsigned srcSlot, unsigned srcCount) {
-    assert(dstSlot + srcCount < dst->count);
+    assert(dstSlot + srcCount <= dst->count);
     if (prefixLength <= dst->prefixLength) {  // prefix grows
         unsigned diff = dst->prefixLength - prefixLength;
         for (unsigned i = 0; i < srcCount; i++) {
@@ -380,10 +380,12 @@ void HashNode::splitNode(AnyNode *parent, unsigned sepSlot, std::span<std::uint8
     right.init(sepKey, getUpperFence(), capacity, rangeOpCounter);
     bool succ = parent->insertChild(sepKey, nodeLeftAlloc.pid);
     assert(succ);
-    copyKeyValueRange(nodeLeft, 0, 0, sepSlot + 1);
-    copyKeyValueRange(&right, 0, nodeLeft->count, count - nodeLeft->count);
+    nodeLeft->count = sepSlot + 1;
     nodeLeft->sortedCount = nodeLeft->count;
+    copyKeyValueRange(nodeLeft, 0, 0, sepSlot + 1);
+    right.count = count - nodeLeft->count;
     right.sortedCount = right.count;
+    copyKeyValueRange(&right, 0, nodeLeft->count, count - nodeLeft->count);
     nodeLeft->validate();
     right.validate();
     memcpy(this, &right, pageSizeLeaf);
