@@ -395,3 +395,15 @@ void HashNode::getSep(uint8_t *sepKeyOut, SeparatorInfo info) {
     memcpy(sepKeyOut, getLowerFence().data(), prefixLength);
     memcpy(sepKeyOut + prefixLength, getKey(info.slot + info.isTruncated).data(), info.length - prefixLength);
 }
+
+bool HashNode::lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
+    rangeOpCounter.point_op();
+    int index = findIndex(key, compute_hash(key.subspan(prefixLength, key.size() - prefixLength)));
+    if (index >= 0) {
+        auto pl = getPayload(index);
+        valueOut = {valueOut.data(), pl.size()};
+        copySpan(valueOut, pl);
+        return true;
+    }
+    return false;
+}
