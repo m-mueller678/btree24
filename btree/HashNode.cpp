@@ -401,6 +401,8 @@ bool HashNode::lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
     int index = findIndex(key, compute_hash(key.subspan(prefixLength, key.size() - prefixLength)));
     if (index >= 0) {
         auto pl = getPayload(index);
+        if (pl.size() > maxKvSize)
+            throw OLCRestartException();
         valueOut = {valueOut.data(), pl.size()};
         copySpan(valueOut, pl);
         return true;

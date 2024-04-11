@@ -23,7 +23,8 @@ struct DataStructureWrapper {
     TlxWrapper impl;
 #endif
 
-    // valueOut must be sufficiently large, the btree does not check if the value fits.
+    // valueOut must be at least maxKvSize. The btree does not check if the value fits.
+    // Due optimistic locks, large values that have never been inserted may be written to valueOut.
     bool lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut);
 
     bool lookup(std::span<uint8_t> key) {
