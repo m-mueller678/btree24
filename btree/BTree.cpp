@@ -62,7 +62,11 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
                 }
                 case Tag::Dense:
                 case Tag::Dense2: {
-                    TODO_UNIMPL
+                    if (nodeLocked->dense()->insert(key, payload)) {
+                        parent.release_ignore();
+                        return;
+                    }
+                    break;
                 }
                 case Tag::Hash: {
                     if (nodeLocked->hash()->insert(key, payload)) {

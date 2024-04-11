@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <c++/11/span>
 #include "Tag.hpp"
 #include "nodes.hpp"
 #include "functional"
@@ -56,35 +57,37 @@ struct DenseNode {
 
     unsigned fencesOffset();
 
-    uint8_t *getLowerFence();
+    std::span<uint8_t> slice(uint16_t offset, uint16_t len);
 
-    uint8_t *getUpperFence();
+    std::span<uint8_t> getLowerFence();
+
+    std::span<uint8_t> getUpperFence();
 
     AnyNode *any();
 
-    uint8_t *getPrefix();
+    std::span<uint8_t> getPrefix();
 
     static void restoreKey(NumericPart arrayStart, unsigned fullKeyLen, uint8_t *prefix, uint8_t *dst, unsigned index);
 
-    void changeUpperFence(uint8_t *fence, unsigned len);
+    void changeUpperFence(std::span<uint8_t> fence);
 
     void copyKeyValueRangeToBasic(BTreeNode *dst, unsigned srcStart, unsigned srcEnd);
 
-    bool insert(uint8_t *key, unsigned keyLength, uint8_t *payload, unsigned payloadLength);
+    bool insert(std::span<uint8_t> key, std::span<uint8_t> payload);
 
-    void splitNode1(AnyNode *parent, uint8_t *key, unsigned keyLen);
+    void splitNode1(AnyNode *parent, std::span<uint8_t> key);
 
-    void splitNode2(AnyNode *parent, uint8_t *key, unsigned keyLen);
+    void splitNode2(AnyNode *parent, std::span<uint8_t> key);
 
     unsigned prefixDiffLen();
 
-    KeyError keyToIndex(uint8_t *truncatedKey, unsigned truncatedLen);
+    KeyError keyToIndex(std::span<uint8_t> truncatedKey);
 
     static unsigned computeNumericPartLen(unsigned fullKeyLen);
 
     static unsigned computeNumericPrefixLength(unsigned fullKeyLen);
 
-    void changeLowerFence(uint8_t *lowerFence, unsigned lowerFenceLen, uint8_t *upperFence, unsigned upperFenceLen);
+    void changeLowerFence(std::span<uint8_t> lowerFence, std::span<uint8_t> upperFence);
 
     static bool densify1(DenseNode *out, BTreeNode *basicNode);
 
@@ -92,10 +95,10 @@ struct DenseNode {
 
     static DenseSeparorInfo densifySplit(uint8_t *sepBuffer, BTreeNode *basicNode);
 
-    void init2b(uint8_t *lowerFence, unsigned lowerFenceLen, uint8_t *upperFence, unsigned upperFenceLen,
+    void init2b(std::span<uint8_t> lowerFence, std::span<uint8_t> upperFence,
                 unsigned fullKeyLen, unsigned slotCount);
 
-    int cmpNumericPrefix(uint8_t *key, unsigned length);
+    int cmpNumericPrefix(std::span<uint8_t> key);
 
     unsigned maskWordCount();
 
@@ -104,9 +107,9 @@ struct DenseNode {
     void zeroSlots();
 
     // rounds down
-    static NumericPart getNumericPart(uint8_t *key, unsigned length, unsigned targetLength);
+    static NumericPart getNumericPart(std::span<uint8_t> key, unsigned targetLength);
 
-    static NumericPart leastGreaterKey(uint8_t *key, unsigned length, unsigned targetLength);
+    static NumericPart leastGreaterKey(std::span<uint8_t> key, unsigned targetLength);
 
     void updateArrayStart();
 
@@ -120,7 +123,7 @@ struct DenseNode {
 
     void setSlotPresent(unsigned i);
 
-    void insertSlotWithSpace(unsigned i, uint8_t *payload, unsigned payloadLen);
+    void insertSlotWithSpace(unsigned i, std::span<uint8_t> payload);
 
     bool requestSpaceFor(unsigned payloadLen);
 
@@ -130,13 +133,15 @@ struct DenseNode {
 
     void unsetSlotPresent(unsigned i);
 
-    uint8_t *getVal(unsigned i);
+    std::span<uint8_t> getValD1(unsigned i);
 
-    uint8_t *lookup(uint8_t *key, unsigned int keyLength, unsigned int &payloadSizeOut);
+    std::span<uint8_t> getValD2(unsigned i);
+
+    bool lookup(std::span<uint8_t> key, std::span<uint8_t> &payloadOut);
 
     void updatePrefixLength();
 
-    bool remove(uint8_t *key, unsigned int keyLength);
+    bool remove(std::span<uint8_t> key);
 
     bool is_underfull();
 
@@ -157,7 +162,7 @@ struct DenseNode {
                            uint8_t *keyOut,
                            const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
 
-    bool isNumericRangeAnyLen(uint8_t *key, unsigned length);
+    bool isNumericRangeAnyLen(std::span<uint8_t> key);
 
     void print();
 };

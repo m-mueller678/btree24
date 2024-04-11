@@ -106,7 +106,7 @@ bool BTreeNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
         bool densify2 = enableDense2 && tag() == Tag::Leaf && key.size() - prefixLength == slot[0].keyLen;
         if ((densify1 || densify2) && tmp._dense.try_densify(this)) {
             memcpy(this, &tmp, pageSizeLeaf);
-            TODO_UNIMPL // return this->any()->dense()->insert(key, key.size(), payload, payload.size());
+            return this->any()->dense()->insert(key, payload);
         }
         return false;  // no space, insert fails
     }

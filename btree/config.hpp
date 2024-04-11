@@ -6,12 +6,12 @@
 
 constexpr bool enablePrefix = true;
 constexpr bool enableBasicHead = true;
-constexpr bool enableDense = false;
-constexpr bool enableHash = true;
+constexpr bool enableDense = true;
+constexpr bool enableHash = false;
 constexpr unsigned basicHintCount = 16;
 constexpr bool enableDense2 = false;
 constexpr bool enableHashAdapt = false;
-constexpr bool enableDensifySplit = false;
+constexpr bool enableDensifySplit = true;
 constexpr const char *configName = "dev_config_name";
 constexpr unsigned maxKvSize = 1024;
 constexpr unsigned pageSize = 1 << 12;

@@ -89,19 +89,18 @@ bool AnyNode::splitNodeWithParent(AnyNode *parent, std::span<uint8_t> key) {
         case Tag::Leaf:
             if (enableDensifySplit) {
                 uint8_t sepBuffer[BTreeNode::maxKVSize];
-                TODO_UNIMPL
-//                auto sep = DenseNode::densifySplit(sepBuffer, basic());
-//                if (sep.lowerCount != 0) {
-//                    if (parent->innerRequestSpaceFor(sep.fenceLen)) {
-//                        bool found;
-//                        unsigned index = basic()->lowerBound(std::span{sepBuffer, sep.fenceLen}, found);
-//                        assert(sep.lowerCount == index + found);
-//                        basic()->splitNode(parent, sep.lowerCount - 1, sepBuffer, sep.fenceLen);
-//                        return true;
-//                    } else {
-//                        return false;
-//                    }
-//                }
+                auto sep = DenseNode::densifySplit(sepBuffer, basic());
+                if (sep.lowerCount != 0) {
+                    if (parent->innerRequestSpaceFor(sep.fenceLen)) {
+                        bool found;
+                        unsigned index = basic()->lowerBound(std::span{sepBuffer, sep.fenceLen}, found);
+                        assert(sep.lowerCount == index + found);
+                        basic()->splitNode(parent, sep.lowerCount - 1, sepBuffer, sep.fenceLen);
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
             }
             // continue with normal node split
         case Tag::Inner: {
