@@ -118,7 +118,17 @@ bool AnyNode::splitNodeWithParent(AnyNode *parent, std::span<uint8_t> key) {
         }
         case Tag::Dense:
         case Tag::Dense2: {
-            TODO_UNIMPL
+            if (parent->innerRequestSpaceFor(
+                    dense()->fullKeyLen)) {  // is there enough space in the parent for the separator?
+                if (tag == Tag::Dense)
+                    dense()->splitNode1(parent, key);
+                else
+                    dense()->splitNode2(parent, key);
+                return true;
+            } else {
+                return false;
+            }
+            break;
         }
         case Tag::Hash: {
             hash()->sort();

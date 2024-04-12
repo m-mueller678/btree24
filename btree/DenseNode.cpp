@@ -191,79 +191,78 @@ BTreeNode *DenseNode::convertToBasic() {
     memcpy(basicNode, &tmp.node, pageSizeLeaf);
     return basicNode;
 }
-//
-//void DenseNode::splitNode1(AnyNode* parent, std::span<uint8_t> key)
-//{
-//    assert(key.size() >= prefixLength);
-//    int key_index = keyToIndex(key);
-//    bool split_to_self;
-//    switch (key_index) {
-//        case KeyError::FarTooLarge:
-//        case KeyError::NotNumericRange:
-//            split_to_self = false;
-//            break;
-//        case KeyError::WrongLen:
-//            // splitting into two new basic nodes might be impossible if prefix length is short
-//            if (upperFenceLen < fullKeyLen) {
-//                split_to_self = false;
-//            } else {
-//                // TODO split to two basic nodes instead
-//                split_to_self = false;
-//            }
-//            break;
-//        case KeyError::SlightlyTooLarge:
-//            split_to_self = true;
-//            break;
-//    }
-//    uint8_t full_boundary[fullKeyLen];
-//    restoreKey(arrayStart, fullKeyLen, getLowerFence().data(), full_boundary, slotCount - 1);
-//
-//    auto left = AnyNode::allocLeaf();
-//    memcpy(left.ptr, this, sizeof(DenseNode));
-//    bool succ = parent->insertChild({full_boundary, fullKeyLen}, left.pid);
-//    assert(succ);
-//    auto denseLeft = left->dense();
-//    if (split_to_self) {
-//        this->changeLowerFence({full_boundary, denseLeft->fullKeyLen}, denseLeft->getUpperFence());
-//    } else {
-//        BTreeNode* right = &this->any()->_basic_node;
-//        right->init(true,RangeOpCounter{});
-//        right->setFences(full_boundary, denseLeft->fullKeyLen, denseLeft->getUpperFence(), denseLeft->upperFenceLen);
-//    }
-//    denseLeft->changeUpperFence(full_boundary, denseLeft->fullKeyLen);
-//}
-//
-//void DenseNode::splitNode2(AnyNode* parent, uint8_t* key, unsigned keyLen)
-//{
-//    assert(keyLen >= prefixLength);
-//    DenseNode* left = reinterpret_cast<DenseNode*>(AnyNode::allocLeaf());
-//    uint8_t splitKeyBuffer[fullKeyLen];
-//    unsigned totalSpace = occupiedCount * 2 + spaceUsed;
-//    unsigned leftSpace = 0;
-//    unsigned splitSlot = 0;
-//    while (leftSpace < totalSpace / 2) {
-//        ASSUME(splitSlot < slotCount);
-//        if (slots[splitSlot]) {
-//            leftSpace += 2 + 2 + slotValLen(splitSlot);
-//        }
-//        splitSlot += 1;
-//    }
-//    restoreKey(arrayStart, fullKeyLen, getLowerFence(), splitKeyBuffer, splitSlot);
-//    left->init2b(getLowerFence(), lowerFenceLen, splitKeyBuffer, fullKeyLen, fullKeyLen, splitSlot + 1);
-//    for (unsigned i = 0; i <= splitSlot; ++i) {
-//        if (slots[i])
-//            left->insertSlotWithSpace(i, ptr() + slots[i] + 2, slotValLen(i));
-//    }
-//    DenseNode right;
-//    right.init2b(splitKeyBuffer, fullKeyLen, getUpperFence(), upperFenceLen, fullKeyLen, slotCount - splitSlot - 1);
-//    for (unsigned i = splitSlot + 1; i < slotCount; ++i) {
-//        if (slots[i])
-//            right.insertSlotWithSpace(i - splitSlot - 1, ptr() + slots[i] + 2, slotValLen(i));
-//    }
-//    memcpy(this, &right, pageSizeLeaf);
-//    bool succ = parent->insertChild(splitKeyBuffer, left->fullKeyLen, left->any());
-//    ASSUME(succ);
-//}
+
+void DenseNode::splitNode1(AnyNode *parent, std::span<uint8_t> key) {
+    assert(key.size() >= prefixLength);
+    int key_index = keyToIndex(key);
+    bool split_to_self;
+    switch (key_index) {
+        case KeyError::FarTooLarge:
+        case KeyError::NotNumericRange:
+            split_to_self = false;
+            break;
+        case KeyError::WrongLen:
+            // splitting into two new basic nodes might be impossible if prefix length is short
+            if (upperFenceLen < fullKeyLen) {
+                split_to_self = false;
+            } else {
+                // TODO split to two basic nodes instead
+                split_to_self = false;
+            }
+            break;
+        case KeyError::SlightlyTooLarge:
+            split_to_self = true;
+            break;
+    }
+    uint8_t full_boundary[fullKeyLen];
+    restoreKey(arrayStart, fullKeyLen, getLowerFence().data(), full_boundary, slotCount - 1);
+
+    auto left = AnyNode::allocLeaf();
+    memcpy(left.ptr, this, sizeof(DenseNode));
+    bool succ = parent->insertChild({full_boundary, fullKeyLen}, left.pid);
+    assert(succ);
+    auto denseLeft = left->dense();
+    if (split_to_self) {
+        this->changeLowerFence({full_boundary, denseLeft->fullKeyLen}, denseLeft->getUpperFence());
+    } else {
+        BTreeNode *right = &this->any()->_basic_node;
+        right->init(true, RangeOpCounter{});
+        right->setFences({full_boundary, denseLeft->fullKeyLen}, denseLeft->getUpperFence());
+    }
+    denseLeft->changeUpperFence({full_boundary, denseLeft->fullKeyLen});
+}
+
+void DenseNode::splitNode2(AnyNode *parent, std::span<uint8_t> key) {
+    assert(key.size() >= prefixLength);
+    auto left = AnyNode::allocLeaf();
+    auto leftDense = &left->_dense;
+    uint8_t splitKeyBuffer[fullKeyLen];
+    unsigned totalSpace = occupiedCount * 2 + spaceUsed;
+    unsigned leftSpace = 0;
+    unsigned splitSlot = 0;
+    while (leftSpace < totalSpace / 2) {
+        ASSUME(splitSlot < slotCount);
+        if (slots[splitSlot]) {
+            leftSpace += 2 + 2 + slotValLen(splitSlot);
+        }
+        splitSlot += 1;
+    }
+    restoreKey(arrayStart, fullKeyLen, getLowerFence().data(), splitKeyBuffer, splitSlot);
+    leftDense->init2b(getLowerFence(), {splitKeyBuffer, fullKeyLen}, fullKeyLen, splitSlot + 1);
+    for (unsigned i = 0; i <= splitSlot; ++i) {
+        if (slots[i])
+            leftDense->insertSlotWithSpace(i, getValD2(i));
+    }
+    DenseNode right;
+    right.init2b({splitKeyBuffer, fullKeyLen}, getUpperFence(), fullKeyLen, slotCount - splitSlot - 1);
+    for (unsigned i = splitSlot + 1; i < slotCount; ++i) {
+        if (slots[i])
+            right.insertSlotWithSpace(i - splitSlot - 1, getValD2(i));
+    }
+    memcpy(this, &right, pageSizeLeaf);
+    bool succ = parent->insertChild({splitKeyBuffer, leftDense->fullKeyLen}, left.pid);
+    ASSUME(succ);
+}
 
 KeyError DenseNode::keyToIndex(std::span<uint8_t> key) {
     if (key.size() != fullKeyLen)
@@ -483,31 +482,28 @@ bool DenseNode::densify2(DenseNode *out, BTreeNode *from) {
     out->occupiedCount = from->count;
     return true;
 }
-//
-//void DenseNode::init2b(uint8_t* lowerFence,
-//                       unsigned lowerFenceLen,
-//                       uint8_t* upperFence,
-//                       unsigned upperFenceLen,
-//                       unsigned fullKeyLen,
-//                       unsigned slotCount)
-//{
-//    assert(enablePrefix);
-//    assert(sizeof(DenseNode) == pageSizeLeaf);
-//    tag = Tag::Dense2;
-//    this->fullKeyLen = fullKeyLen;
-//    this->spaceUsed = 0;
-//    this->lowerFenceLen = lowerFenceLen;
-//    this->upperFenceLen = upperFenceLen;
-//    occupiedCount = 0;
-//    this->dataOffset = fencesOffset();
-//    memcpy(this->getLowerFence(), lowerFence, lowerFenceLen);
-//    memcpy(this->getUpperFence(), upperFence, upperFenceLen);
-//    this->updatePrefixLength();
-//    this->updateArrayStart();
-//    this->slotCount = slotCount;
-//    zeroSlots();
-//    assert(computeNumericPrefixLength(fullKeyLen) <= lowerFenceLen);
-//}
+
+void DenseNode::init2b(std::span<uint8_t> lowerFence,
+                       std::span<uint8_t> upperFence,
+                       unsigned fullKeyLen,
+                       unsigned slotCount) {
+    assert(enablePrefix);
+    assert(sizeof(DenseNode) == pageSizeLeaf);
+    set_tag(Tag::Dense2);
+    this->fullKeyLen = fullKeyLen;
+    this->spaceUsed = 0;
+    this->lowerFenceLen = lowerFenceLen;
+    this->upperFenceLen = upperFenceLen;
+    occupiedCount = 0;
+    this->dataOffset = fencesOffset();
+    copySpan(this->getLowerFence(), lowerFence);
+    copySpan(this->getUpperFence(), upperFence);
+    this->updatePrefixLength();
+    this->updateArrayStart();
+    this->slotCount = slotCount;
+    zeroSlots();
+    assert(computeNumericPrefixLength(fullKeyLen) <= lowerFenceLen);
+}
 
 bool DenseNode::is_underfull() {
     unsigned totalEntrySize = (fullKeyLen - prefixLength + valLen + sizeof(BTreeNode::Slot)) * occupiedCount;
