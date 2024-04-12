@@ -365,9 +365,9 @@ void HashNode::splitNode(AnyNode *parent, unsigned sepSlot, std::span<std::uint8
         bool goodHeads = hasGoodHeads();
         if (goodHeads) {
             rangeOpCounter.setGoodHeads();
-            TODO_UNIMPL //return splitToBasic(parent, sepSlot, sepKey);
+            return splitToBasic(parent, sepSlot, sepKey);
         } else if (!rangeOpCounter.isLowRange()) {
-            TODO_UNIMPL //return splitToBasic(parent, sepSlot, sepKey);
+            return splitToBasic(parent, sepSlot, sepKey);
         }
     }
     // split this node into nodeLeft and nodeRight
@@ -408,4 +408,47 @@ bool HashNode::lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
         return true;
     }
     return false;
+}
+
+
+bool HashNode::hasGoodHeads() {
+    unsigned threshold = count / 16;
+    unsigned collisionCount = 0;
+    for (unsigned i = 1; i < count; ++i) {
+        // if either key is at most 4 bytes, there is no collision because keys are unique.
+        if (slot[i - 1].keyLen > 4 && slot[i].keyLen > 4 && memcmp(getKey(i - 1).data(), getKey(i).data(), 4) == 0) {
+            collisionCount += 1;
+            if (collisionCount > threshold)
+                return false;
+        }
+    }
+    return true;
+}
+
+
+void HashNode::splitToBasic(AnyNode *parent, unsigned sepSlot, std::span<uint8_t> sepKey) {
+    // split this node into nodeLeft and nodeRight
+    assert(sepSlot > 0);
+    auto nodeLeft = AnyNode::allocLeaf();
+    auto leftBasic = &nodeLeft->_basic_node;
+    leftBasic->init(true, rangeOpCounter);
+    leftBasic->setFences(getLowerFence(), sepKey);
+    TmpBTreeNode right_tmp;
+    BTreeNode &right = right_tmp.node;
+    right.init(true, rangeOpCounter);
+    right.setFences(sepKey, getUpperFence());
+    bool succ = parent->insertChild(sepKey, nodeLeft.pid);
+    assert(succ);
+    copyKeyValueRangeToBasic(leftBasic, 0, 0, sepSlot + 1);
+    copyKeyValueRangeToBasic(&right, 0, leftBasic->count, count - leftBasic->count);
+    memcpy(this, &right, pageSizeLeaf);
+}
+
+
+void HashNode::copyKeyValueRangeToBasic(BTreeNode *dst, unsigned dstSlot, unsigned srcSlot, unsigned srcCount) {
+    for (unsigned i = 0; i < srcCount; i++)
+        copyKeyValueToBasic(srcSlot + i, dst, dstSlot + i);
+    dst->count += srcCount;
+    dst->makeHint();
+    assert((dst->ptr() + dst->dataOffset) >= reinterpret_cast<uint8_t *>(dst->slot + dst->count));
 }

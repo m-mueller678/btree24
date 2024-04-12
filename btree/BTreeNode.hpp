@@ -161,7 +161,7 @@ struct BTreeNode : public BTreeNodeHeader {
 
     bool hasBadHeads();
 
-    void splitToHash(AnyNode *parent, unsigned int sepSlot, uint8_t *sepKey, unsigned int sepLength);
+    void splitToHash(AnyNode *parent, unsigned int sepSlot, std::span<uint8_t> sepKey);
 
     void copyKeyValueRangeToHash(HashNode *dst, unsigned int dstSlot, unsigned int srcSlot, unsigned int srcCount);
 

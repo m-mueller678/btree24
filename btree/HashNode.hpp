@@ -126,7 +126,7 @@ struct HashNode : public HashNodeHeader {
 
     void copyKeyValueToBasic(unsigned int srcSlot, BTreeNode *dst, unsigned int dstSlot);
 
-    void splitToBasic(AnyNode *parent, unsigned int sepSlot, uint8_t *sepKey, unsigned int sepLength);
+    void splitToBasic(AnyNode *parent, unsigned int sepSlot, std::span<uint8_t> sepKey);
 
     bool tryConvertToBasic();
 

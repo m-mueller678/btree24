@@ -4,6 +4,9 @@
 #include "BTreeNode.hpp"
 #include "AnyNode.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Winvalid-offsetof"
+
 unsigned DenseNode::fencesOffset() {
     return pageSizeLeaf - lowerFenceLen - max(upperFenceLen, fullKeyLen);
 }
@@ -804,3 +807,5 @@ bool DenseNode::isNumericRangeAnyLen(std::span<uint8_t> key) {
     }
     return true;
 }
+
+#pragma clang diagnostic pop

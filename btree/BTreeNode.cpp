@@ -375,15 +375,14 @@ void BTreeNode::splitNode(AnyNode *parent, unsigned sepSlot, uint8_t *sepKey, un
     GuardX<AnyNode> nodeLeft;
     if (isLeaf()) {
         if (enableHashAdapt) {
-            TODO_UNIMPL
-//           bool badHeads = hasBadHeads();
-//            if(badHeads){
-//                rangeOpCounter.setBadHeads(rangeOpCounter.count);
-//            }else{
-//                rangeOpCounter.setGoodHeads();
-//            }
-//            if(badHeads && rangeOpCounter.isLowRange())
-//                return splitToHash(parent, sepSlot, sepKey, sepLength);
+            bool badHeads = hasBadHeads();
+            if (badHeads) {
+                rangeOpCounter.setBadHeads(rangeOpCounter.count);
+            } else {
+                rangeOpCounter.setGoodHeads();
+            }
+            if (badHeads && rangeOpCounter.isLowRange())
+                return splitToHash(parent, sepSlot, {sepKey, sepLength});
         }
         nodeLeft = AnyNode::allocLeaf();
         nodeLeft->_basic_node.init(true, rangeOpCounter);
@@ -443,4 +442,50 @@ bool BTreeNode::lookupLeaf(std::span<uint8_t> key, std::span<uint8_t> &valueOut)
     memcpy(valueOut.data(), payload.data(), payload.size());
     valueOut = {valueOut.data(), payload.size()};
     return true;
+}
+
+bool BTreeNode::hasBadHeads() {
+    unsigned threshold = count / 16;
+    unsigned collisionCount = 0;
+    for (unsigned i = 1; i < count; ++i) {
+        if (slot[i - 1].head[0] == slot[i].head[0]) {
+            collisionCount += 1;
+            if (collisionCount > threshold)
+                break;
+        }
+    }
+    return collisionCount > threshold;
+}
+
+
+void BTreeNode::splitToHash(AnyNode *parent, unsigned sepSlot, std::span<uint8_t> sepKey) {
+    auto nodeLeft = AnyNode::allocLeaf();
+    auto leftHash = &nodeLeft->_hash;
+    unsigned capacity = count;
+    leftHash->init(getLowerFence(), sepKey, capacity, rangeOpCounter);
+    HashNode right;
+    right.init(sepKey, getUpperFence(), capacity, rangeOpCounter);
+    bool succ = parent->insertChild(sepKey, nodeLeft.pid);
+    assert(succ);
+    copyKeyValueRangeToHash(leftHash, 0, 0, sepSlot + 1);
+    copyKeyValueRangeToHash(&right, 0, leftHash->count, count - leftHash->count);
+    leftHash->sortedCount = leftHash->count;
+    right.sortedCount = right.count;
+    leftHash->validate();
+    right.validate();
+    memcpy(this, &right, pageSizeLeaf);
+}
+
+
+void BTreeNode::copyKeyValueRangeToHash(HashNode *dst, unsigned dstSlot, unsigned srcSlot, unsigned srcCount) {
+    for (unsigned i = 0; i < srcCount; i++) {
+        unsigned fullLength = slot[srcSlot + i].keyLen + prefixLength;
+        uint8_t key[fullLength];
+        memcpy(key, getLowerFence().data(), prefixLength);
+        memcpy(key + prefixLength, getKey(srcSlot + i).data(), slot[srcSlot + i].keyLen);
+        dst->storeKeyValue(dstSlot + i, {key, fullLength}, getPayload(srcSlot + i),
+                           HashNode::compute_hash({key + dst->prefixLength, fullLength - dst->prefixLength}));
+    }
+    dst->count += srcCount;
+    assert((dst->ptr() + dst->dataOffset) >= reinterpret_cast<uint8_t *>(dst->slot + dst->count));
 }
