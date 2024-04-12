@@ -138,7 +138,7 @@ bool BTree::lookupImpl(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
                 }
                 case Tag::Dense:
                 case Tag::Dense2: {
-                    TODO_UNIMPL
+                    return node->dense()->lookup(key, valueOut);
                 }
                 case Tag::Hash: {
                     return node->hash()->lookup(key, valueOut);
