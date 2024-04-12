@@ -492,8 +492,8 @@ void DenseNode::init2b(std::span<uint8_t> lowerFence,
     set_tag(Tag::Dense2);
     this->fullKeyLen = fullKeyLen;
     this->spaceUsed = 0;
-    this->lowerFenceLen = lowerFenceLen;
-    this->upperFenceLen = upperFenceLen;
+    this->lowerFenceLen = lowerFence.size();
+    this->upperFenceLen = upperFence.size();
     occupiedCount = 0;
     this->dataOffset = fencesOffset();
     copySpan(this->getLowerFence(), lowerFence);
