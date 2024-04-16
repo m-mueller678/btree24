@@ -452,3 +452,41 @@ void HashNode::copyKeyValueRangeToBasic(BTreeNode *dst, unsigned dstSlot, unsign
     dst->makeHint();
     assert((dst->ptr() + dst->dataOffset) >= reinterpret_cast<uint8_t *>(dst->slot + dst->count));
 }
+
+bool HashNode::isSorted() {
+    return sortedCount == count;
+}
+
+
+bool HashNode::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
+                                const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
+    bool found;
+    for (unsigned i = (key.data() == nullptr) ? 0 : lowerBound(key, found); i < count; ++i) {
+        auto entry_key = getKey(i);
+        copySpan({keyOutBuffer + prefixLength, entry_key.size()}, entry_key);
+        if (!found_record_cb(entry_key.size() + prefixLength, getPayload(i))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+unsigned HashNode::lowerBound(std::span<uint8_t> key, bool &found) {
+    found = false;
+    key = key.subspan(prefixLength, key.size() - prefixLength);
+    unsigned lower = 0;
+    unsigned upper = count;
+    while (lower < upper) {
+        unsigned mid = ((upper - lower) / 2) + lower;
+        auto cmp = span_compare(key, getKey(mid));
+        if (cmp < 0) {
+            upper = mid;
+        } else if (cmp > 0) {
+            lower = mid + 1;
+        } else {
+            found = true;
+            return mid;
+        }
+    }
+    return lower;
+}

@@ -489,3 +489,8 @@ void BTreeNode::copyKeyValueRangeToHash(HashNode *dst, unsigned dstSlot, unsigne
     dst->count += srcCount;
     assert((dst->ptr() + dst->dataOffset) >= reinterpret_cast<uint8_t *>(dst->slot + dst->count));
 }
+
+bool BTreeNode::range_lookup(std::span<uint8_t> key, uint8_t *keyOutBuffer,
+                             const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
+    TODO_UNIMPL
+}

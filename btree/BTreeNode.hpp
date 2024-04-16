@@ -141,10 +141,8 @@ struct BTreeNode : public BTreeNodeHeader {
 
     bool insertChild(std::span<uint8_t> key, PID child);
 
-    bool range_lookup(uint8_t *key,
-                      unsigned int keyLen,
-                      uint8_t *keyOut,
-                      const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
+    bool range_lookup(std::span<uint8_t> key, uint8_t *keyOutBuffer,
+                      const std::function<bool(unsigned, std::span<uint8_t>)> &found_record_cb);
 
     void validate_child_fences();
 
@@ -153,11 +151,6 @@ struct BTreeNode : public BTreeNodeHeader {
     void restoreKeyExclusive(std::span<uint8_t> keyOut, unsigned index);
 
     void validateHint();
-
-    bool range_lookup_desc(uint8_t *key,
-                           unsigned int keyLen,
-                           uint8_t *keyOut,
-                           const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
 
     bool hasBadHeads();
 

@@ -82,9 +82,11 @@ struct PageState {
         stateAndVersion.store(nextVersion(stateAndVersion.load(), Evicted), std::memory_order_release);
     }
 
-    void downgradeLock() {
+    u64 downgradeXtoO() {
+        auto next = nextVersion(stateAndVersion.load(), Unlocked);
         assert(getState() == Locked);
-        stateAndVersion.store(nextVersion(stateAndVersion.load(), 1), std::memory_order_release);
+        stateAndVersion.store(next, std::memory_order_release);
+        return next;
     }
 
     bool tryLockS(u64 oldStateAndVersion) {
@@ -325,10 +327,16 @@ struct GuardO {
     u64 version;
     static const u64 moved = ~0ull;
 
+    static GuardO released() {
+        return {};
+    }
+
     // constructor
     explicit GuardO(u64 pid) : pid(pid), ptr(reinterpret_cast<T *>(bm.toPtr(pid))) {
         init();
     }
+
+    explicit GuardO(PID pid, T *ptr, u64 version) : pid(pid), ptr(ptr), version(version) {}
 
     template<class T2>
     GuardO(u64 pid, GuardO<T2> &parent) {
@@ -433,6 +441,9 @@ struct GuardO {
         pid = moved;
         ptr = nullptr;
     }
+
+private:
+    GuardO() : pid(moved), ptr(nullptr) {}
 };
 
 template<class T>
@@ -476,6 +487,10 @@ struct GuardX {
             }
             yield(repeatCounter);
         }
+    }
+
+    GuardO<T> downgrade() &&{
+        return GuardO<T>{pid, ptr, bm.getPageState(pid).downgradeXtoO()};
     }
 
     static GuardX alloc() {

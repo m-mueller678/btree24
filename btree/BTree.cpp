@@ -149,3 +149,78 @@ bool BTree::lookupImpl(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
         } catch (const OLCRestartException &) { yield(); }
     }
 }
+
+void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
+                             const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
+    GuardO<AnyNode> leafGuards[4]{GuardO<AnyNode>::released(), GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
+                                  GuardO<AnyNode>::released()};
+    unsigned lockedLeaves = 0;
+    std::span<uint8_t> leafKey = key;
+    memcpy(keyOutBuffer, key.data(), key.size());
+    while (true) {
+        GuardO<AnyNode> parent{metadataPid};
+        GuardO<AnyNode> node(reinterpret_cast<MetaDataPage *>(parent.ptr)->root, parent);
+
+        while (node->isAnyInner()) {
+            parent = std::move(node);
+            node = GuardO<AnyNode>(parent->lookupInner(key), parent);
+        }
+        parent.release();
+        if (lockedLeaves >= sizeof(leafGuards) / sizeof(leafGuards[0])) {
+            abort();
+        }
+        while (true) {
+            switch (node->tag()) {
+                case Tag::Leaf: {
+                    node->basic()->rangeOpCounter.range_op();
+                    if (node->hash()->rangeOpCounter.shouldConvertHash()) {
+                        GuardX<AnyNode> nodeX(std::move(node));
+                        TODO_UNIMPL
+                    }
+                    if (!node->basic()->range_lookup(leafKey, keyOutBuffer, found_record_cb))
+                        return;
+                    key = {keyOutBuffer, node->basic()->upperFence.length};
+                    node.checkVersionAndRestart();
+                    copySpan(key, node->basic()->getUpperFence());
+                    break;
+                }
+                case Tag::Dense:
+                case Tag::Dense2: {
+                    TODO_UNIMPL
+                }
+                case Tag::Hash: {
+                    node->hash()->rangeOpCounter.range_op();
+                    bool sorted = node->hash()->isSorted();
+                    bool convert = node->hash()->rangeOpCounter.shouldConvertBasic();
+                    if (!sorted || convert) {
+                        GuardX<AnyNode> nodeX(std::move(node));
+                        if (convert) {
+                            TODO_UNIMPL
+//                            if(nodeX->hash()->tryConvertToBasic()){
+//                                node = std::move(nodeX).downgrade();
+//                                continue;
+//                            }
+                        }
+                        nodeX->hash()->sort();
+                        node = std::move(nodeX).downgrade();
+                    }
+                    if (!node->hash()->range_lookupImpl(leafKey, keyOutBuffer, found_record_cb))
+                        return;
+                    key = {keyOutBuffer, node->hash()->upperFenceLen};
+                    node.checkVersionAndRestart();
+                    copySpan(key, node->hash()->getUpperFence());
+                    break;
+                }
+                default:
+                    ASSUME(false);
+            }
+            break;
+        }
+        leafKey = {};
+        key = {keyOutBuffer, key.size() + 1};
+        key[key.size() - 1] = 0;
+        leafGuards[lockedLeaves] = std::move(node);
+        lockedLeaves += 1;
+    }
+}
+

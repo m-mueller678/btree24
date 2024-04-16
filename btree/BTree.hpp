@@ -17,17 +17,8 @@ struct BTree {
 
     void insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload);
 
-    bool removeImpl(uint8_t *key, unsigned int keyLength) const;
-
-    void range_lookupImpl(uint8_t *key,
-                          unsigned int keyLen,
-                          uint8_t *keyOut,
-                          const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
-
-    void range_lookup_descImpl(uint8_t *key,
-                               unsigned int keyLen,
-                               uint8_t *keyOut,
-                               const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
+    void range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
+                          const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb);
 
     void trySplit(GuardX<AnyNode> node, GuardX<AnyNode> parent, std::span<uint8_t> key);
 

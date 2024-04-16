@@ -76,6 +76,7 @@ struct HashNode : public HashNodeHeader {
 
     void compactify(unsigned newHashCapacity);
 
+    bool isSorted();
     void sort();
 
     unsigned int commonPrefix(unsigned int slotA, unsigned int slotB);
@@ -104,21 +105,14 @@ struct HashNode : public HashNodeHeader {
 
     void print();
 
-    bool range_lookup(std::span<uint8_t> key,
-                      unsigned int keyLen,
-                      uint8_t *keyOut,
-                      const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
+    bool range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
+                          const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb);
 
-    unsigned int lowerBound(uint8_t *key, unsigned int keyLength, bool &found);
+    unsigned int lowerBound(std::span<uint8_t> key, bool &found);
 
     int findIndexNoSimd(std::span<uint8_t> key, uint8_t hash);
 
     int findIndexSimd(std::span<uint8_t> key, uint8_t hash);
-
-    bool range_lookup_desc(uint8_t *key,
-                           unsigned int keyLen,
-                           uint8_t *keyOut,
-                           const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
 
     void validate();
 

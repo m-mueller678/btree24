@@ -37,15 +37,10 @@ struct DataStructureWrapper {
 
     bool remove(uint8_t *key, unsigned keyLength);
 
-    void range_lookup(uint8_t *key,
-                      unsigned int keyLen,
-                      uint8_t *keyOut,
-                      const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
-
-    void range_lookup_desc(uint8_t *key,
-                           unsigned int keyLen,
-                           uint8_t *keyOut,
-                           const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
+    // keyOutBuffer must be at least maxKvSize.
+    // may throw OLCRestartException.
+    void range_lookup(std::span<uint8_t> key, uint8_t *keyOutBuffer,
+                      const std::function<bool(unsigned, std::span<uint8_t>)> &found_record_cb);
 
     void testing_update_payload(uint8_t *key, unsigned int keyLength, uint8_t *payload);
 };

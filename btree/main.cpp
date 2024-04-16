@@ -95,18 +95,30 @@ static void runMulti(BTreeCppPerfEvent e,
             for (uint64_t i = 0; i < opCountC; i++) {
                 unsigned keyIndex = operationsC[tid * opCountC + i];
                 assert(keyIndex < keyCount);
-                uint8_t *key = (uint8_t *) data[keyIndex].data;
-                unsigned long length = data[keyIndex].len;
-                if (!t.lookup({key, length}))
+                if (!t.lookup(data[keyIndex].span()))
                     abort();
             }
             barrier.arrive_and_wait();
+            std::minstd_rand local_rng(tid);
+            std::uniform_int_distribution range_len_distribution(unsigned(1), maxScanLength);
             barrier.arrive_and_wait();
             // ycsb-e
             for (uint64_t i = 0; i < opCountE; i++) {
                 unsigned index = operationsE[tid * opCountC + i];
                 assert(index < keyCount);
-                //TODO
+                unsigned scanLength = range_len_distribution(local_rng);
+                while (true) {
+                    unsigned scanCount = 0;
+                    try {
+                        t.range_lookup(data[index].span(), outBuffer, [&](unsigned keyLen, std::span<uint8_t> payload) {
+                            scanCount += 1;
+                            return scanCount == scanLength;
+                        });
+                        break;
+                    } catch (OLCRestartException e) {
+                        continue;
+                    }
+                }
             }
             barrier.arrive_and_wait();
         }, i);

@@ -36,3 +36,30 @@ bool DataStructureWrapper::lookup(std::span<uint8_t> key, std::span<uint8_t> &va
 #endif
     return found;
 }
+
+void DataStructureWrapper::range_lookup(std::span<uint8_t> key, uint8_t *keyOutBuffer,
+                                        const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
+#ifdef CHECK_TREE_OPS
+    try{
+        bool shouldContinue = true;
+        auto keyVec = toByteVector(key);
+        auto std_iterator = std_map.lower_bound(keyVec);
+        impl.range_lookupImpl(key, keyLen, keyOut, [&](unsigned keyLen, std::span<uint8_t> payload) {
+            assert(shouldContinue);
+            assert(std_iterator != std_map.end());
+            assert(std_iterator->first.size() == keyLen);
+            assert(memcmp(std_iterator->first.data(), keyOut, keyLen) == 0);
+            assert(std_iterator->second.size() == payload.size());
+            assert(memcmp(std_iterator->second.data(), payload.data(), payload.size()) == 0);
+            shouldContinue = found_record_cb(keyLen, payload, payloadLen);
+            ++std_iterator;
+            return shouldContinue;
+        });
+        if (shouldContinue) {
+            assert(std_iterator == std_map.end());
+        }
+    }
+#else
+    impl.range_lookupImpl(key, keyOutBuffer, std::move(found_record_cb));
+#endif
+}
