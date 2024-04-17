@@ -146,20 +146,14 @@ struct DenseNode : TagAndDirty {
 
     BTreeNode *convertToBasic();
 
-    bool range_lookup1(uint8_t *key,
-                       unsigned int keyLen,
+    bool range_lookup1(std::span<uint8_t> key,
                        uint8_t *keyOut,
-                       const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
+                       const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb);
 
-    bool range_lookup2(uint8_t *key,
-                       unsigned int keyLen,
+    bool range_lookup2(std::span<uint8_t> key,
                        uint8_t *keyOut,
-                       const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
+                       const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb);
 
-    bool range_lookup_desc(uint8_t *key,
-                           unsigned int keyLen,
-                           uint8_t *keyOut,
-                           const std::function<bool(unsigned int, uint8_t *, unsigned int)> &found_record_cb);
 
     bool isNumericRangeAnyLen(std::span<uint8_t> key);
 

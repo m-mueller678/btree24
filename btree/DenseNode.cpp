@@ -808,4 +808,72 @@ bool DenseNode::isNumericRangeAnyLen(std::span<uint8_t> key) {
     return true;
 }
 
+bool DenseNode::range_lookup1(std::span<uint8_t> key, uint8_t *keyOut,
+                              const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
+    if (!isNumericRangeAnyLen(key))
+        return true;
+    unsigned firstIndex = (key.data() == nullptr) ? 0 : (leastGreaterKey(key, fullKeyLen) - (key.size() == fullKeyLen) -
+                                                         arrayStart);
+    unsigned nprefLen = computeNumericPrefixLength(fullKeyLen);
+    if (nprefLen > prefixLength) {
+        auto lf = getLowerFence();
+        memcpy(keyOut + prefixLength, lf.data() + prefixLength, lf.size() - prefixLength);
+    }
+
+    unsigned wordIndex = firstIndex / maskBitsPerWord;
+    Mask word = mask[wordIndex];
+    unsigned shift = firstIndex % maskBitsPerWord;
+    word >>= shift;
+    while (true) {
+        unsigned trailingZeros = std::__countr_zero(word);
+        if (trailingZeros == maskBitsPerWord) {
+            wordIndex += 1;
+            if (wordIndex >= maskWordCount()) {
+                return true;
+            }
+            shift = 0;
+            word = mask[wordIndex];
+        } else {
+            shift += trailingZeros;
+            word >>= trailingZeros;
+            unsigned entryIndex = wordIndex * maskBitsPerWord + shift;
+            if (entryIndex > slotCount) {
+                return true;
+            }
+            NumericPart numericPart = __builtin_bswap32(arrayStart + static_cast<NumericPart>(entryIndex));
+            unsigned numericPartLen = fullKeyLen - nprefLen;
+            memcpy(keyOut + nprefLen, reinterpret_cast<uint8_t *>(&numericPart) + sizeof(NumericPart) - numericPartLen,
+                   numericPartLen);
+            if (!found_record_cb(fullKeyLen, getValD1(entryIndex))) {
+                return false;
+            }
+            shift += 1;
+            word >>= 1;
+        }
+    }
+}
+
+bool DenseNode::range_lookup2(std::span<uint8_t> key, uint8_t *keyOut,
+                              const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
+    unsigned firstIndex = (key.data() == nullptr) ? 0 : (leastGreaterKey(key, fullKeyLen) - (key.size() == fullKeyLen) -
+                                                         arrayStart);
+    unsigned nprefLen = computeNumericPrefixLength(fullKeyLen);
+    if (nprefLen > prefixLength) {
+        auto lf = getLowerFence();
+        memcpy(keyOut + prefixLength, lf.data() + prefixLength, lf.size() - prefixLength);
+    }
+    for (unsigned i = firstIndex; i < slotCount; ++i) {
+        if (slots[i]) {
+            NumericPart numericPart = __builtin_bswap32(arrayStart + static_cast<NumericPart>(i));
+            unsigned numericPartLen = fullKeyLen - nprefLen;
+            memcpy(keyOut + nprefLen, reinterpret_cast<uint8_t *>(&numericPart) + sizeof(NumericPart) - numericPartLen,
+                   numericPartLen);
+            if (!found_record_cb(fullKeyLen, getValD2(i))) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 #pragma clang diagnostic pop
