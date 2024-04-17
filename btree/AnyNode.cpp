@@ -15,20 +15,26 @@ void AnyNode::print() {
 }
 
 BTreeNode *AnyNode::basic() {
+#ifdef CHECK_TREE_OPS
     Tag t = _tag_and_dirty.tag();
     ASSUME(t == Tag::Leaf || t == Tag::Inner);
+#endif
     return reinterpret_cast<BTreeNode *>(this);
 }
 
 DenseNode *AnyNode::dense() {
+#ifdef CHECK_TREE_OPS
     Tag t = _tag_and_dirty.tag();
     ASSUME(t == Tag::Dense || t == Tag::Dense2);
+#endif
     return reinterpret_cast<DenseNode *>(this);
 }
 
 HashNode *AnyNode::hash() {
+#ifdef CHECK_TREE_OPS
     Tag t = _tag_and_dirty.tag();
     ASSUME(t == Tag::Hash);
+#endif
     return reinterpret_cast<HashNode *>(this);
 }
 
