@@ -492,5 +492,14 @@ void BTreeNode::copyKeyValueRangeToHash(HashNode *dst, unsigned dstSlot, unsigne
 
 bool BTreeNode::range_lookup(std::span<uint8_t> key, uint8_t *keyOutBuffer,
                              const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
-    TODO_UNIMPL
+    rangeOpCounter.range_op();
+    ASSUME(enablePrefix || prefixLength == 0);
+    for (unsigned i = (key.data() == nullptr) ? 0 : lowerBound(key); i < count; ++i) {
+        const std::span<uint8_t> &entry_key = getKey(i);
+        memcpy(keyOutBuffer + prefixLength, entry_key.data(), entry_key.size());
+        if (!found_record_cb(slot[i].keyLen + prefixLength, getPayload(i))) {
+            return false;
+        }
+    }
+    return true;
 }
