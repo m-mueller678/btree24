@@ -56,7 +56,7 @@ void RangeOpCounter::point_op() {
             }
             if (!should_dec) { break; }
             if (should_dec) {
-                if (count.compare_exchange_weak(c, c + 1, std::memory_order_relaxed, std::memory_order_relaxed)) {
+                if (count.compare_exchange_weak(c, c - 1, std::memory_order_relaxed, std::memory_order_relaxed)) {
                     break;
                 } else {
                     continue;
