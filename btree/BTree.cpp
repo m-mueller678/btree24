@@ -173,7 +173,8 @@ void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
             switch (node->tag()) {
                 case Tag::Leaf: {
                     node->basic()->rangeOpCounter.range_op();
-                    if (node->hash()->rangeOpCounter.shouldConvertHash()) {
+                    assert(node->tag() == Tag::Leaf);
+                    if (node->basic()->rangeOpCounter.shouldConvertHash()) {
                         GuardX<AnyNode> nodeX(std::move(node));
                         TODO_UNIMPL
                     }
