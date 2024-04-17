@@ -31,7 +31,10 @@ std::span<uint8_t> DenseNode::getValD1(unsigned slotId) {
 }
 
 std::span<uint8_t> DenseNode::getValD2(unsigned slotId) {
-    return slice(slots[slotId] + 2, slotValLen(slotId));
+    auto recordOffset = slots[slotId];
+    if (recordOffset + 2 > pageSizeLeaf)
+        throw OLCRestartException();
+    return slice(recordOffset + 2, loadUnaligned<uint16_t>(ptr() + recordOffset));
 }
 
 bool DenseNode::lookup(std::span<uint8_t> key, std::span<uint8_t> &payloadOut) {
