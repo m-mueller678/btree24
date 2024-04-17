@@ -50,34 +50,40 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
 
             parent.checkVersionAndRestart();
             GuardX<AnyNode> nodeLocked{std::move(node)};
-            switch (nodeLocked->tag()) {
-                case Tag::Leaf: {
-                    nodeLocked->basic()->rangeOpCounter.point_op();
-                    if (nodeLocked->basic()->rangeOpCounter.shouldConvertHash()) { TODO_UNIMPL }
-                    if (nodeLocked->basic()->insert(key, payload)) {
-                        parent.release_ignore();
-                        return;
+            while (true) {
+                switch (nodeLocked->tag()) {
+                    case Tag::Leaf: {
+                        if (nodeLocked->basic()->insert(key, payload)) {
+                            parent.release_ignore();
+                            return;
+                        }
+                        break;
                     }
-                    break;
-                }
-                case Tag::Dense:
-                case Tag::Dense2: {
-                    if (nodeLocked->dense()->insert(key, payload)) {
-                        parent.release_ignore();
-                        return;
+                    case Tag::Dense:
+                    case Tag::Dense2: {
+                        if (nodeLocked->dense()->insert(key, payload)) {
+                            parent.release_ignore();
+                            return;
+                        }
+                        break;
                     }
-                    break;
-                }
-                case Tag::Hash: {
-                    if (nodeLocked->hash()->insert(key, payload)) {
-                        parent.release_ignore();
-                        return;
+                    case Tag::Hash: {
+                        nodeLocked->hash()->rangeOpCounter.point_op();
+                        if (nodeLocked->hash()->rangeOpCounter.shouldConvertBasic() &&
+                            nodeLocked->hash()->tryConvertToBasic())
+                            continue;
+                        if (nodeLocked->hash()->insert(key, payload)) {
+                            parent.release_ignore();
+                            return;
+                        }
+                        break;
                     }
-                    break;
+                    default:
+                        ASSUME(false);
                 }
-                default:
-                    ASSUME(false);
+                break;
             }
+
             GuardX<AnyNode> parentLocked{std::move(parent)};
             trySplit(std::move(nodeLocked), std::move(parentLocked), key);
             // insert hasn't happened, restart from root
@@ -130,21 +136,30 @@ bool BTree::lookupImpl(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
                 node = GuardO<AnyNode>(parent->lookupInner(key), parent);
             }
 
-            switch (node->tag()) {
-                case Tag::Leaf: {
-                    node->basic()->rangeOpCounter.point_op();
-                    if (node->basic()->rangeOpCounter.shouldConvertHash()) { TODO_UNIMPL }
-                    return node->basic()->lookupLeaf(key, valueOut);
+            while (true) {
+                switch (node->tag()) {
+                    case Tag::Leaf: {
+                        node->basic()->rangeOpCounter.point_op();
+                        if (node->basic()->rangeOpCounter.shouldConvertHash()) {
+                            GuardX<AnyNode> nodeX(std::move(node));
+                            bool converted = nodeX->hash()->tryConvertToBasic();
+                            node = std::move(nodeX).downgrade();
+                            if (converted)continue;
+                        }
+                        return node->basic()->lookupLeaf(key, valueOut);
+                    }
+                    case Tag::Dense:
+                    case Tag::Dense2: {
+                        return node->dense()->lookup(key, valueOut);
+                    }
+                    case Tag::Hash: {
+                        node->hash()->rangeOpCounter.point_op();
+                        return node->hash()->lookup(key, valueOut);
+                    }
+                    default:
+                        ASSUME(false);
                 }
-                case Tag::Dense:
-                case Tag::Dense2: {
-                    return node->dense()->lookup(key, valueOut);
-                }
-                case Tag::Hash: {
-                    return node->hash()->lookup(key, valueOut);
-                }
-                default:
-                    ASSUME(false);
+                break;
             }
         } catch (const OLCRestartException &) { yield(); }
     }
@@ -173,11 +188,6 @@ void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
             switch (node->tag()) {
                 case Tag::Leaf: {
                     node->basic()->rangeOpCounter.range_op();
-                    assert(node->tag() == Tag::Leaf);
-                    if (node->basic()->rangeOpCounter.shouldConvertHash()) {
-                        GuardX<AnyNode> nodeX(std::move(node));
-                        TODO_UNIMPL
-                    }
                     if (!node->basic()->range_lookup(leafKey, keyOutBuffer, found_record_cb))
                         return;
                     key = {keyOutBuffer, node->basic()->upperFence.length};
@@ -195,15 +205,16 @@ void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
                     bool convert = node->hash()->rangeOpCounter.shouldConvertBasic();
                     if (!sorted || convert) {
                         GuardX<AnyNode> nodeX(std::move(node));
-                        if (convert) {
-                            TODO_UNIMPL
-//                            if(nodeX->hash()->tryConvertToBasic()){
-//                                node = std::move(nodeX).downgrade();
-//                                continue;
-//                            }
+                        bool converted = false;
+                        if (convert && nodeX->hash()->tryConvertToBasic()) {
+                            converted = true;
                         }
-                        nodeX->hash()->sort();
+                        if (!converted) {
+                            nodeX->hash()->sort();
+                        }
                         node = std::move(nodeX).downgrade();
+                        if (converted)
+                            continue;
                     }
                     if (!node->hash()->range_lookupImpl(leafKey, keyOutBuffer, found_record_cb))
                         return;

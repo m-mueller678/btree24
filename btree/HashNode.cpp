@@ -490,3 +490,17 @@ unsigned HashNode::lowerBound(std::span<uint8_t> key, bool &found) {
     }
     return lower;
 }
+
+bool HashNode::tryConvertToBasic() {
+    if (spaceUsed + count * sizeof(BTreeNode::Slot) + sizeof(BTreeNodeHeader) > pageSizeLeaf) {
+        return false;
+    }
+    sort();
+    TmpBTreeNode tmp_space;
+    BTreeNode &tmp = tmp_space.node;
+    tmp.init(true, rangeOpCounter);
+    tmp.setFences(getLowerFence(), getUpperFence());
+    copyKeyValueRangeToBasic(&tmp, 0, 0, count);
+    memcpy(this, &tmp, pageSizeLeaf);
+    return true;
+}
