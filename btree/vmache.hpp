@@ -490,7 +490,10 @@ struct GuardX {
     }
 
     GuardO<T> downgrade() &&{
-        return GuardO<T>{pid, ptr, bm.getPageState(pid).downgradeXtoO()};
+        GuardO<T> other{pid, ptr, bm.getPageState(pid).downgradeXtoO()};
+        pid = moved;
+        ptr = nullptr;
+        return other;
     }
 
     static GuardX alloc() {
