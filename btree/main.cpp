@@ -155,13 +155,30 @@ static void runMulti(BTreeCppPerfEvent e,
     }
 }
 
+
+void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed) {
+    std::cout << "seed: " << seed << std::endl;
+    Key *data = zipfc_load_keys(ZIPFC_RNG, "test", keyCount, 1.0, 1);
+
+}
+
+
 int main(int argc, char *argv[]) {
     bool dryRun = getenv("DRYRUN");
-
+    unsigned threadCount = envu64("THREADS");
     unsigned rand_seed = getenv("SEED") ? envu64("SEED") : time(NULL);
     ZIPFC_RNG = create_zipfc_rng(rand_seed, 0, "main");
-
     unsigned keyCount = envu64("KEY_COUNT");
+#ifdef CHECK_TREE_OPS
+    std::cerr << "CHECK_TREE_OPS enabled, forcing single threaded" << std::endl;
+    threadCount = 1;
+#endif
+    uint64_t ycsb_variant = envu64("YCSB_VARIANT");
+    if (ycsb_variant == 7) {
+        runTest(threadCount, keyCount, rand_seed);
+        return 0;
+    }
+
     if (!getenv("DATA")) {
         std::cerr << "no keyset" << std::endl;
         abort();
@@ -178,14 +195,8 @@ int main(int argc, char *argv[]) {
     std::string keySet = getenv("DATA");
     unsigned payloadSize = envu64("PAYLOAD_SIZE");
     unsigned opCount = envu64("OP_COUNT");
-    unsigned threadCount = envu64("THREADS");
-#ifdef CHECK_TREE_OPS
-    std::cerr << "CHECK_TREE_OPS enabled, forcing single threaded" << std::endl;
-    threadCount = 1;
-#endif
     double zipfParameter = envf64("ZIPF");
     double intDensity = envf64("DENSITY");
-    uint64_t ycsb_variant = envu64("YCSB_VARIANT");
     uint64_t partition_count = envu64("PARTITION_COUNT");
     unsigned maxScanLength = envu64("SCAN_LENGTH");
 
