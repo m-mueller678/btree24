@@ -142,7 +142,7 @@ bool BTree::lookupImpl(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
                         node->basic()->rangeOpCounter.point_op();
                         if (node->basic()->rangeOpCounter.shouldConvertHash()) {
                             GuardX<AnyNode> nodeX(std::move(node));
-                            bool converted = nodeX->hash()->tryConvertToBasic();
+                            bool converted = nodeX->basic()->tryConvertToHash();
                             node = std::move(nodeX).downgrade();
                             if (converted)continue;
                         }

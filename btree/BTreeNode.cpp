@@ -503,3 +503,24 @@ bool BTreeNode::range_lookup(std::span<uint8_t> key, uint8_t *keyOutBuffer,
     }
     return true;
 }
+
+bool BTreeNode::tryConvertToHash() {
+    if (spaceUsed + count * (1 + sizeof(HashSlot)) + sizeof(HashNodeHeader) > pageSizeLeaf) {
+        return false;
+    }
+    unsigned capacity;
+    {
+        unsigned available = pageSizeLeaf - sizeof(HashNodeHeader) - upperFence.length - lowerFence.length;
+        unsigned entrySpaceUse = spaceUsed - upperFence.length - lowerFence.length + count * sizeof(HashSlot);
+        // equivalent to `available / (entrySpaceUse/count +1)`
+        capacity = count == 0 ? pageSizeLeaf / 64 : available * count / (entrySpaceUse + count);
+        ASSUME(capacity >= count);
+    }
+    HashNode tmp;
+    tmp.init(getLowerFence(), getUpperFence(), capacity, rangeOpCounter);
+    copyKeyValueRangeToHash(&tmp, 0, 0, count);
+    tmp.sortedCount = tmp.count;
+    tmp.validate();
+    memcpy(this, &tmp, pageSizeLeaf);
+    return true;
+}

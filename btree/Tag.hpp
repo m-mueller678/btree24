@@ -62,11 +62,11 @@ struct RangeOpCounter {
     }
 
     bool shouldConvertHash() {
-        return count == 0;
+        return enableHashAdapt && count == 0;
     }
 
     bool shouldConvertBasic() {
-        return count == MAX_COUNT;
+        return enableHashAdapt && count == MAX_COUNT;
     }
 };
 
