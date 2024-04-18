@@ -157,6 +157,8 @@ struct DenseNode : TagAndDirty {
 
     bool isNumericRangeAnyLen(std::span<uint8_t> key);
 
+    void validate();
+
     void print();
 };
 

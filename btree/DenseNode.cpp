@@ -130,6 +130,7 @@ void DenseNode::copyKeyValueRangeToBasic(BTreeNode *dst, unsigned srcStart, unsi
 
 bool DenseNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
     ASSUME(key.size() >= prefixLength);
+    validate();
     if (tag() == Tag::Dense) {
         if (payload.size() != valLen || key.size() != fullKeyLen) {
             unsigned entrySize = occupiedCount * (fullKeyLen - prefixLength + payload.size() + sizeof(BTreeNode::Slot));
@@ -626,124 +627,6 @@ void DenseNode::unsetSlotPresent(unsigned i) {
     assert(i < slotCount);
     mask[i / maskBitsPerWord] &= ~(Mask(1) << (i % maskBitsPerWord));
 }
-//
-//bool DenseNode::range_lookup1(uint8_t* key,
-//                              unsigned keyLen,
-//                              uint8_t* keyOut,
-//        // called with keylen and value
-//        // scan continues if callback returns true
-//                              const std::function<bool(unsigned int, uint8_t*, unsigned int)>& found_record_cb)
-//{
-//    if (!isNumericRangeAnyLen(key))
-//        return true;
-//    unsigned firstIndex = (key == nullptr) ? 0 : (leastGreaterKey(key, keyLen, fullKeyLen) - (keyLen == fullKeyLen) - arrayStart);
-//    unsigned nprefLen = computeNumericPrefixLength(fullKeyLen);
-//    if (nprefLen > prefixLength) {
-//        memcpy(keyOut + prefixLength, getLowerFence() + prefixLength, nprefLen - prefixLength);
-//    }
-//
-//    unsigned wordIndex = firstIndex / maskBitsPerWord;
-//    Mask word = mask[wordIndex];
-//    unsigned shift = firstIndex % maskBitsPerWord;
-//    word >>= shift;
-//    while (true) {
-//        unsigned trailingZeros = std::__countr_zero(word);
-//        if (trailingZeros == maskBitsPerWord) {
-//            wordIndex += 1;
-//            if (wordIndex >= maskWordCount()) {
-//                return true;
-//            }
-//            shift = 0;
-//            word = mask[wordIndex];
-//        } else {
-//            shift += trailingZeros;
-//            word >>= trailingZeros;
-//            unsigned entryIndex = wordIndex * maskBitsPerWord + shift;
-//            if (entryIndex > slotCount) {
-//                return true;
-//            }
-//            NumericPart numericPart = __builtin_bswap32(arrayStart + static_cast<NumericPart>(entryIndex));
-//            unsigned numericPartLen = fullKeyLen - nprefLen;
-//            memcpy(keyOut + nprefLen, reinterpret_cast<uint8_t*>(&numericPart) + sizeof(NumericPart) - numericPartLen, numericPartLen);
-//            if (!found_record_cb(fullKeyLen, getValD1(entryIndex), valLen)) {
-//                return false;
-//            }
-//            shift += 1;
-//            word >>= 1;
-//        }
-//    }
-//}
-//
-//bool DenseNode::range_lookup2(uint8_t* key,
-//                              unsigned keyLen,
-//                              uint8_t* keyOut,
-//        // called with keylen and value
-//        // scan continues if callback returns true
-//                              const std::function<bool(unsigned int, uint8_t*, unsigned int)>& found_record_cb)
-//{
-//    unsigned firstIndex = (key == nullptr) ? 0 : (leastGreaterKey(key, keyLen, fullKeyLen) - (keyLen == fullKeyLen) - arrayStart);
-//    unsigned nprefLen = computeNumericPrefixLength(fullKeyLen);
-//    if (nprefLen > prefixLength) {
-//        memcpy(keyOut + prefixLength, getLowerFence() + prefixLength, nprefLen - prefixLength);
-//    }
-//    for (unsigned i = firstIndex; i < slotCount; ++i) {
-//        if (slots[i]) {
-//            NumericPart numericPart = __builtin_bswap32(arrayStart + static_cast<NumericPart>(i));
-//            unsigned numericPartLen = fullKeyLen - nprefLen;
-//            memcpy(keyOut + nprefLen, reinterpret_cast<uint8_t*>(&numericPart) + sizeof(NumericPart) - numericPartLen, numericPartLen);
-//            if (!found_record_cb(fullKeyLen, ptr() + slots[i] + 2, slotValLen(i))) {
-//                return false;
-//            }
-//        }
-//    }
-//    return true;
-//}
-//
-//bool DenseNode::range_lookup_desc(uint8_t* key,
-//                                  unsigned keyLen,
-//                                  uint8_t* keyOut,
-//        // called with keylen and value
-//        // scan continues if callback returns true
-//                                  const std::function<bool(unsigned int, uint8_t*, unsigned int)>& found_record_cb)
-//{
-//    abort();  // this function is currently broken
-//    int firstIndex = isNumericRangeAnyLen(key, keyLen) ? (int(leastGreaterKey(key, keyLen, fullKeyLen)) - 1 - (keyLen != fullKeyLen) - arrayStart)
-//                                                       : (slotCount - 1);
-//    if (firstIndex < 0)
-//        return true;
-//    unsigned nprefLen = computeNumericPrefixLength(fullKeyLen);
-//    memcpy(keyOut, getLowerFence(), nprefLen);
-//
-//    int wordIndex = firstIndex / maskBitsPerWord;
-//    Mask word = mask[wordIndex];
-//    unsigned shift = (maskBitsPerWord - 1 - firstIndex % maskBitsPerWord);
-//    word <<= shift;
-//    while (true) {
-//        unsigned leadingZeros = std::__countl_zero(word);
-//        if (leadingZeros == maskBitsPerWord) {
-//            wordIndex -= 1;
-//            if (wordIndex < 0) {
-//                return true;
-//            }
-//            shift = 0;
-//            word = mask[wordIndex];
-//        } else {
-//            shift += leadingZeros;
-//            ASSUME(shift < maskBitsPerWord);
-//            word <<= leadingZeros;
-//            unsigned entryIndex = wordIndex * maskBitsPerWord + (maskBitsPerWord - 1 - shift);
-//            NumericPart numericPart = __builtin_bswap32(arrayStart + static_cast<NumericPart>(entryIndex));
-//            unsigned numericPartLen = fullKeyLen - nprefLen;
-//            memcpy(keyOut + nprefLen, reinterpret_cast<uint8_t*>(&numericPart) + sizeof(NumericPart) - numericPartLen, numericPartLen);
-//            if (!found_record_cb(fullKeyLen, getValD1(entryIndex), valLen)) {
-//                return false;
-//            }
-//            shift += 1;
-//            word <<= 1;
-//        }
-//    }
-//}
-
 void DenseNode::print() {
     printf("# DenseNode%d\n", tag() == Tag::Dense ? 1 : 2);
     printf("lower fence: ");
@@ -877,6 +760,17 @@ bool DenseNode::range_lookup2(std::span<uint8_t> key, uint8_t *keyOut,
         }
     }
     return true;
+}
+
+void DenseNode::validate() {
+    if (!IS_DEBUG)
+        return;
+    if (tag() == Tag::Dense2) {
+        for (int i = 0; i < slotCount; ++i) {
+            auto offset = slots[i];
+            assert(offset + 2 <= pageSizeLeaf);
+        }
+    }
 }
 
 #pragma clang diagnostic pop

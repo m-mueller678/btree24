@@ -200,12 +200,14 @@ void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
                     key = {keyOutBuffer, node->dense()->upperFenceLen};
                     node.checkVersionAndRestart();
                     copySpan(key, node->dense()->getUpperFence());
+                    break;
                 }
                 case Tag::Dense2: {
                     node->dense()->range_lookup2(key, keyOutBuffer, found_record_cb);
                     key = {keyOutBuffer, node->dense()->upperFenceLen};
                     node.checkVersionAndRestart();
                     copySpan(key, node->dense()->getUpperFence());
+                    break;
                 }
                 case Tag::Hash: {
                     node->hash()->rangeOpCounter.range_op();
