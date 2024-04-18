@@ -5,6 +5,7 @@
 #include <set>
 #include <string>
 #include "PerfEvent.hpp"
+#include "common.hpp"
 #include <iostream>
 
 #include <zipfc.h>
@@ -155,11 +156,92 @@ static void runMulti(BTreeCppPerfEvent e,
     }
 }
 
+void ensure(bool x) {
+    if (!x)
+        abort();
+}
 
 void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed) {
+    constexpr static uint32_t WRITE_BIT = 1 << 31;
+    constexpr static uint32_t BATCH_MASK = WRITE_BIT - 1;
+
     std::cout << "seed: " << seed << std::endl;
     Key *data = zipfc_load_keys(ZIPFC_RNG, "test", keyCount, 1.0, 1);
+    auto keyState = new std::atomic<uint32_t>[keyCount];
+    for (int i = 0; i < keyCount; ++i)
+        std::atomic_init(keyState + i, 0);
+    std::uniform_int_distribution op_distr((uint32_t) 0, (uint32_t) 9);
+    std::uniform_int_distribution key_index_distr((uint32_t) 0, (uint32_t) keyCount - 1);
 
+    uint32_t ops_per_batch = keyCount / threadCount;
+    constexpr static uint32_t batch_count = 1000;
+
+    DataStructureWrapper tree(false);
+
+    std::vector<std::thread> threads;
+    std::barrier barrier{threadCount};
+    for (int tid_outer = 0; tid_outer < threadCount; ++tid_outer) {
+        threads.emplace_back([&](unsigned tid) {
+            for (uint32_t batch = 1; batch < batch_count + 1; ++batch) {
+                unsigned written_count = 0;
+                if (tid == 0) {
+                    std::cout << "batch: " << batch << std::endl;
+                }
+                union {
+                    uint32_t batch_i;
+                    uint8_t batch_b[4];
+                };
+                uint8_t outBuffer[maxKvSize];
+                std::span<uint8_t> outSpan{outBuffer, 0};
+                batch_i = batch;
+                for (uint32_t phase = 0; phase <= 1; ++phase) {
+                    barrier.arrive_and_wait();
+                    std::minstd_rand local_rng(tid + batch * threadCount);
+                    for (uint32_t op = 0; op < ops_per_batch; ++op) {
+                        uint32_t key_index = key_index_distr(local_rng);
+                        uint32_t op_type = op_distr(local_rng);
+                        if (op_type == 0) {
+                            if (phase == 0) {
+                                keyState[key_index].fetch_or(WRITE_BIT, std::memory_order_relaxed);
+                            } else {
+                                batch_i = batch;
+                                tree.insert(data[key_index].span(), {batch_b, 4});
+                            }
+                        } else if (op_type == 1) {
+                            //TODO
+                        } else {
+                            if (phase == 1) {
+                                bool found = tree.lookup(data[key_index].span(), outSpan);
+                                auto state = keyState[key_index].load(std::memory_order_relaxed);
+                                auto expected_version = state & BATCH_MASK;
+                                auto is_written = (state & WRITE_BIT) != 0;
+                                written_count += is_written;
+                                if (found) {
+                                    ensure(expected_version != 0 || is_written);
+                                    ensure(outSpan.size() == 4);
+                                    copySpan({batch_b, 4}, outSpan);
+                                    ensure(batch_i == expected_version || batch_i == batch && is_written);
+                                } else {
+                                    ensure(expected_version == 0);
+                                }
+                            }
+                        }
+                    }
+                }
+                barrier.arrive_and_wait();
+                // this is lower than it should be
+                std::cout << written_count << std::endl;
+                for (int i = rangeStart(0, keyCount, threadCount, tid);
+                     i < rangeStart(0, keyCount, threadCount, tid + 1); ++i) {
+                    if (keyState[i].load(std::memory_order_relaxed) & WRITE_BIT)
+                        keyState[i].store(batch, std::memory_order_relaxed);
+                }
+            }
+        }, tid_outer);
+    }
+    for (auto &thread: threads) {
+        thread.join();
+    }
 }
 
 

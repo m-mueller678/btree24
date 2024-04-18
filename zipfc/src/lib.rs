@@ -210,7 +210,6 @@ fn generate_test(count: u32, rng: &mut MainRng) -> Vec<Key> {
         }
         out.extend(new_candidates);
     }
-        //out.par_shuffle(rng);
     out.par_sort();
     let out = out.into_par_iter()
         .map(Key::from_vec)
