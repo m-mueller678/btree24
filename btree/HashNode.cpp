@@ -404,11 +404,7 @@ bool HashNode::lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
     }
     int index = findIndex(key, compute_hash(key.subspan(prefixLength, key.size() - prefixLength)));
     if (index >= 0) {
-        auto pl = getPayload(index);
-        if (pl.size() > maxKvSize)
-            throw OLCRestartException();
-        valueOut = {valueOut.data(), pl.size()};
-        copySpan(valueOut, pl);
+        valueOut = optimistic_memcpy(valueOut.data(), 0, getPayload(index));
         return true;
     }
     return false;
@@ -466,9 +462,7 @@ bool HashNode::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
                                 const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
     bool found;
     for (unsigned i = (key.data() == nullptr) ? 0 : lowerBound(key, found); i < count; ++i) {
-        auto entry_key = getKey(i);
-        copySpan({keyOutBuffer + prefixLength, entry_key.size()}, entry_key);
-        if (!found_record_cb(entry_key.size() + prefixLength, getPayload(i))) {
+        if (!found_record_cb(optimistic_memcpy(keyOutBuffer, prefixLength, getKey(i)).size(), getPayload(i))) {
             return false;
         }
     }

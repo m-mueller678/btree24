@@ -437,10 +437,7 @@ bool BTreeNode::lookupLeaf(std::span<uint8_t> key, std::span<uint8_t> &valueOut)
     if (!found)
         return false;
     auto payload = getPayload(pos);
-    if (payload.size() > maxKVSize)
-        throw OLCRestartException();
-    memcpy(valueOut.data(), payload.data(), payload.size());
-    valueOut = {valueOut.data(), payload.size()};
+    valueOut = optimistic_memcpy(valueOut.data(), 0, payload);
     return true;
 }
 
@@ -495,9 +492,7 @@ bool BTreeNode::range_lookup(std::span<uint8_t> key, uint8_t *keyOutBuffer,
     rangeOpCounter.range_op();
     ASSUME(enablePrefix || prefixLength == 0);
     for (unsigned i = (key.data() == nullptr) ? 0 : lowerBound(key); i < count; ++i) {
-        const std::span<uint8_t> &entry_key = getKey(i);
-        memcpy(keyOutBuffer + prefixLength, entry_key.data(), entry_key.size());
-        if (!found_record_cb(slot[i].keyLen + prefixLength, getPayload(i))) {
+        if (!found_record_cb(optimistic_memcpy(keyOutBuffer, prefixLength, getKey(i)).size(), getPayload(i))) {
             return false;
         }
     }

@@ -1,5 +1,7 @@
 #include <cstdio>
 #include "common.hpp"
+#include "config.hpp"
+#include "vmache.hpp"
 
 void printKey(std::span<uint8_t> key) {
     if (key.size() <= 4) {
@@ -48,4 +50,11 @@ unsigned commonPrefixLength(std::span<uint8_t> a, std::span<uint8_t> b) {
         if (a[i] != b[i])
             break;
     return i;
+}
+
+std::span<uint8_t> optimistic_memcpy(uint8_t *buffer, uint32_t offset, std::span<uint8_t> x) {
+    if (offset + x.size() > maxKvSize)
+        throw OLCRestartException();
+    memcpy(buffer + offset, x.data(), x.size());
+    return {buffer, offset + x.size()};
 }

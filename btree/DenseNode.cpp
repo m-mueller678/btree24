@@ -702,8 +702,7 @@ bool DenseNode::range_lookup1(std::span<uint8_t> key, uint8_t *keyOut,
                                                          arrayStart);
     unsigned nprefLen = computeNumericPrefixLength(fullKeyLen);
     if (nprefLen > prefixLength) {
-        auto lf = getLowerFence();
-        memcpy(keyOut + prefixLength, lf.data() + prefixLength, lf.size() - prefixLength);
+        optimistic_memcpy(keyOut, 0, getPrefix());
     }
 
     unsigned wordIndex = firstIndex / maskBitsPerWord;
@@ -728,9 +727,10 @@ bool DenseNode::range_lookup1(std::span<uint8_t> key, uint8_t *keyOut,
             }
             NumericPart numericPart = __builtin_bswap32(arrayStart + static_cast<NumericPart>(entryIndex));
             unsigned numericPartLen = fullKeyLen - nprefLen;
-            memcpy(keyOut + nprefLen, reinterpret_cast<uint8_t *>(&numericPart) + sizeof(NumericPart) - numericPartLen,
-                   numericPartLen);
-            if (!found_record_cb(fullKeyLen, getValD1(entryIndex))) {
+            auto keyLen = optimistic_memcpy(keyOut, nprefLen,
+                                            {reinterpret_cast<uint8_t *>(&numericPart) + sizeof(NumericPart) -
+                                             numericPartLen, numericPartLen}).size();
+            if (!found_record_cb(keyLen, getValD1(entryIndex))) {
                 return false;
             }
             shift += 1;
@@ -746,15 +746,16 @@ bool DenseNode::range_lookup2(std::span<uint8_t> key, uint8_t *keyOut,
     unsigned nprefLen = computeNumericPrefixLength(fullKeyLen);
     if (nprefLen > prefixLength) {
         auto lf = getLowerFence();
-        memcpy(keyOut + prefixLength, lf.data() + prefixLength, lf.size() - prefixLength);
+        optimistic_memcpy(keyOut, 0, getPrefix());
     }
     for (unsigned i = firstIndex; i < slotCount; ++i) {
         if (slots[i]) {
             NumericPart numericPart = __builtin_bswap32(arrayStart + static_cast<NumericPart>(i));
             unsigned numericPartLen = fullKeyLen - nprefLen;
-            memcpy(keyOut + nprefLen, reinterpret_cast<uint8_t *>(&numericPart) + sizeof(NumericPart) - numericPartLen,
-                   numericPartLen);
-            if (!found_record_cb(fullKeyLen, getValD2(i))) {
+            auto keyLen = optimistic_memcpy(keyOut, nprefLen,
+                                            {reinterpret_cast<uint8_t *>(&numericPart) + sizeof(NumericPart) -
+                                             numericPartLen, numericPartLen}).size();
+            if (!found_record_cb(keyLen, getValD2(i))) {
                 return false;
             }
         }

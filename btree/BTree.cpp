@@ -249,6 +249,8 @@ void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
         key[key.size() - 1] = 0;
         leafGuards[lockedLeaves] = std::move(node);
         lockedLeaves += 1;
+        for (int i = 0; i < 4; ++i)
+            leafGuards[i].release();
     }
 }
 
