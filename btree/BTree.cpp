@@ -167,8 +167,10 @@ bool BTree::lookupImpl(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
 
 void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
                              const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
-    GuardO<AnyNode> leafGuards[4]{GuardO<AnyNode>::released(), GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
-                                  GuardO<AnyNode>::released()};
+    std::array<GuardO<AnyNode>, 8> leafGuards = {GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
+                                                 GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
+                                                 GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
+                                                 GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),};
     unsigned lockedLeaves = 0;
     std::span<uint8_t> leafKey = key;
     memcpy(keyOutBuffer, key.data(), key.size());
