@@ -398,6 +398,10 @@ void HashNode::getSep(uint8_t *sepKeyOut, SeparatorInfo info) {
 
 bool HashNode::lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
     rangeOpCounter.point_op();
+    auto prefixLength = this->prefixLength;
+    if (prefixLength > key.size()) {
+        throw OLCRestartException();
+    }
     int index = findIndex(key, compute_hash(key.subspan(prefixLength, key.size() - prefixLength)));
     if (index >= 0) {
         auto pl = getPayload(index);
