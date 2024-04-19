@@ -164,6 +164,7 @@ void ensure(bool x) {
 void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed) {
     constexpr static uint32_t WRITE_BIT = 1 << 31;
     constexpr static uint32_t BATCH_MASK = WRITE_BIT - 1;
+    constexpr static uint32_t SCAN_LEN = 100;
 
     std::cout << "seed: " << seed << std::endl;
     Key *data = zipfc_load_keys(ZIPFC_RNG, "test", keyCount, 1.0, 1);
@@ -187,12 +188,12 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                     std::cout << "batch: " << batch << std::endl;
                 }
                 union {
-                    uint32_t batch_i;
-                    uint8_t batch_b[4];
-                };
+                    uint32_t i;
+                    uint8_t b[4];
+                } batch_convert;
                 uint8_t outBuffer[maxKvSize];
                 std::span<uint8_t> outSpan{outBuffer, 0};
-                batch_i = batch;
+                batch_convert.i = batch;
 
                 unsigned distinct_write_count = 0;
                 unsigned written_count = 0;
@@ -214,11 +215,52 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                                     distinct_write_count += 1;
                                 }
                             } else {
-                                batch_i = batch;
-                                tree.insert(data[key_index].span(), {batch_b, 4});
+                                batch_convert.i = batch;
+                                tree.insert(data[key_index].span(), {batch_convert.b, 4});
                             }
                         } else if (op_type == 1) {
-                            //TODO
+                            if (phase == 1)
+                                while (true)
+                                    try {
+                                        unsigned returned_count = 0;
+                                        unsigned returned_key = key_index;
+                                        bool error = false;
+                                        tree.range_lookup(data[key_index].span(), outBuffer,
+                                                          [&](unsigned keyLen, std::span<uint8_t> payload) {
+                                                              returned_count += 1;
+                                                              ensure(returned_count <= SCAN_LEN);
+                                                              while (!error) {
+                                                                  auto cmp = span_compare({outBuffer, keyLen},
+                                                                                          data[returned_key].span());
+                                                                  if (cmp < 0) {
+                                                                      error = true;
+                                                                  } else if (cmp == 0) {
+                                                                      break;
+                                                                  } else {
+                                                                      if (returned_key + 1 < keyCount &&
+                                                                          (keyState[returned_key] != 0)) {
+                                                                          returned_key += 1;
+                                                                      } else {
+                                                                          error = true;
+                                                                      }
+                                                                  }
+                                                              }
+                                                              error |= keyState[returned_key] != 0;
+                                                              error |= payload.size() != 4;
+                                                              if (!error) {
+                                                                  copySpan({batch_convert.b, 4}, payload);
+                                                                  bool val_ok = (keyState[returned_key] &
+                                                                                 BATCH_MASK == batch_convert.i) ||
+                                                                                (keyState[returned_key] & WRITE_BIT) &&
+                                                                                batch_convert.i == batch;
+                                                                  error |= !val_ok;
+                                                              }
+                                                              return returned_count < SCAN_LEN;
+                                                          });
+                                        ensure(!error);
+                                    } catch (OLCRestartException) {
+                                        continue;
+                                    }
                         } else {
                             if (phase == 1) {
                                 read_count += 1;
@@ -230,8 +272,9 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                                 if (found) {
                                     ensure(expected_version != 0 || is_written);
                                     ensure(outSpan.size() == 4);
-                                    copySpan({batch_b, 4}, outSpan);
-                                    ensure(batch_i == expected_version || batch_i == batch && is_written);
+                                    copySpan({batch_convert.b, 4}, outSpan);
+                                    ensure(batch_convert.i == expected_version ||
+                                           batch_convert.i == batch && is_written);
                                 } else {
                                     ensure(expected_version == 0);
                                 }
