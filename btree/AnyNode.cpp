@@ -7,7 +7,7 @@ void AnyNode::print() {
         case Tag::Leaf:
             return basic()->print();
         case Tag::Hash:
-            TODO_UNIMPL //return hash()->print();
+            return hash()->print();
         case Tag::Dense:
         case Tag::Dense2:
             TODO_UNIMPL //return dense()->print();
@@ -177,3 +177,20 @@ bool AnyNode::insertChild(std::span<uint8_t> key, PID child) {
     ASSUME(false);
 }
 
+void HashNode::print() {
+    printf("# HashNode\n");
+    printf("lower fence: ");
+    for (unsigned i = 0; i < lowerFenceLen; ++i) {
+        printf("%d, ", getLowerFence()[i]);
+    }
+    printf("\nupper fence: ");
+    for (unsigned i = 0; i < upperFenceLen; ++i) {
+        printf("%d, ", getUpperFence()[i]);
+    }
+    printf("\n");
+    for (unsigned i = 0; i < count; ++i) {
+        printf("%4d: [%3d] ", i, hashes()[i]);
+        printKey(getKey(i));
+        printf("\n");
+    }
+}
