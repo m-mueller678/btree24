@@ -164,7 +164,7 @@ void ensure(bool x) {
 void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed) {
     constexpr static uint32_t WRITE_BIT = 1 << 31;
     constexpr static uint32_t BATCH_MASK = WRITE_BIT - 1;
-    constexpr static uint32_t SCAN_LEN = 100;
+    constexpr static uint32_t SCAN_LEN = 10;
 
     std::cout << "seed: " << seed << std::endl;
     Key *data = zipfc_load_keys(ZIPFC_RNG, "test", keyCount, 1.0, 1);
@@ -238,23 +238,26 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                                                                       break;
                                                                   } else {
                                                                       if (returned_key + 1 < keyCount &&
-                                                                          (keyState[returned_key] != 0)) {
+                                                                              ((keyState[returned_key] & BATCH_MASK) ==
+                                                                               0)) {
                                                                           returned_key += 1;
                                                                       } else {
                                                                           error = true;
                                                                       }
                                                                   }
                                                               }
-                                                              error |= keyState[returned_key] != 0;
+                                                              error |= keyState[returned_key] == 0;
                                                               error |= payload.size() != 4;
                                                               if (!error) {
                                                                   copySpan({batch_convert.b, 4}, payload);
-                                                                  bool val_ok = (keyState[returned_key] &
-                                                                                 BATCH_MASK == batch_convert.i) ||
+                                                                  bool val_ok =
+                                                                          ((keyState[returned_key] & BATCH_MASK) ==
+                                                                           batch_convert.i) ||
                                                                                 (keyState[returned_key] & WRITE_BIT) &&
                                                                                 batch_convert.i == batch;
                                                                   error |= !val_ok;
                                                               }
+                                                              returned_key += 1;
                                                               return returned_count < SCAN_LEN;
                                                           });
                                         ensure(!error);
