@@ -258,6 +258,7 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                                                               return returned_count < SCAN_LEN;
                                                           });
                                         ensure(!error);
+                                        break;
                                     } catch (OLCRestartException) {
                                         continue;
                                     }
