@@ -183,7 +183,6 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
     for (int tid_outer = 0; tid_outer < threadCount; ++tid_outer) {
         threads.emplace_back([&](unsigned tid) {
             for (uint32_t batch = 1; batch < batch_count + 1; ++batch) {
-                unsigned written_count = 0;
                 if (tid == 0) {
                     std::cout << "batch: " << batch << std::endl;
                 }
@@ -194,15 +193,26 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                 uint8_t outBuffer[maxKvSize];
                 std::span<uint8_t> outSpan{outBuffer, 0};
                 batch_i = batch;
+
+                unsigned distinct_write_count = 0;
+                unsigned written_count = 0;
+                unsigned write_count = 0;
+                unsigned read_count = 0;
+
                 for (uint32_t phase = 0; phase <= 1; ++phase) {
                     barrier.arrive_and_wait();
-                    std::minstd_rand local_rng(tid + batch * threadCount);
+                    // minstd_rand is not sufficient here, there is much less overlap between reads and writes than would be expected.
+                    std::mt19937 local_rng(tid + batch * threadCount);
                     for (uint32_t op = 0; op < ops_per_batch; ++op) {
                         uint32_t key_index = key_index_distr(local_rng);
                         uint32_t op_type = op_distr(local_rng);
                         if (op_type == 0) {
                             if (phase == 0) {
-                                keyState[key_index].fetch_or(WRITE_BIT, std::memory_order_relaxed);
+                                write_count += 1;
+                                auto old_val = keyState[key_index].fetch_or(WRITE_BIT, std::memory_order_relaxed);
+                                if ((old_val & WRITE_BIT) == 0) {
+                                    distinct_write_count += 1;
+                                }
                             } else {
                                 batch_i = batch;
                                 tree.insert(data[key_index].span(), {batch_b, 4});
@@ -211,6 +221,7 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                             //TODO
                         } else {
                             if (phase == 1) {
+                                read_count += 1;
                                 bool found = tree.lookup(data[key_index].span(), outSpan);
                                 auto state = keyState[key_index].load(std::memory_order_relaxed);
                                 auto expected_version = state & BATCH_MASK;
@@ -230,7 +241,8 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                 }
                 barrier.arrive_and_wait();
                 // this is lower than it should be
-                std::cout << written_count << std::endl;
+                std::cout << written_count << ' ' << write_count << ' ' << distinct_write_count << " " << read_count
+                          << std::endl;
                 for (int i = rangeStart(0, keyCount, threadCount, tid);
                      i < rangeStart(0, keyCount, threadCount, tid + 1); ++i) {
                     if (keyState[i].load(std::memory_order_relaxed) & WRITE_BIT)
@@ -246,6 +258,19 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
 
 
 int main(int argc, char *argv[]) {
+    if (false) {
+        std::minstd_rand rng;
+        std::uniform_int_distribution dist(1, 10000);
+        int hits = 0;
+        int samples = 1000000;
+        for (int i = 0; i < samples; ++i) {
+            auto a = dist(rng);
+            auto b = dist(rng);
+            hits += a == b;
+        }
+        std::cout << hits << std::endl;
+        return 0;
+    }
     bool dryRun = getenv("DRYRUN");
     unsigned threadCount = envu64("THREADS");
     unsigned rand_seed = getenv("SEED") ? envu64("SEED") : time(NULL);
