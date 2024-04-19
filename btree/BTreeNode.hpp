@@ -50,7 +50,10 @@ struct BTreeNode : public BTreeNodeHeader {
 
     // this struct does not have appropriate size.
     // Get Some storage location and call init.
+    // However, this declaration breaks gdb, so we do not use it on debug builds
+#ifdef NDEBUG
     BTreeNode() = delete;
+#endif
 
     static constexpr unsigned maxKVSize =
             (((pageSizeLeaf < pageSizeInner ? pageSizeLeaf : pageSizeInner) - sizeof(BTreeNodeHeader) -
