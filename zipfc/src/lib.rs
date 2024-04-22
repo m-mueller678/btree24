@@ -16,7 +16,7 @@ use std::io::{BufRead, BufReader};
 use std::mem::{size_of, MaybeUninit};
 use std::ptr::hash;
 use std::slice::from_raw_parts;
-use std::sync::atomic::{AtomicBool, AtomicU32};
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::Relaxed;
 use rand_distr::Geometric;
 use random_word::Lang;

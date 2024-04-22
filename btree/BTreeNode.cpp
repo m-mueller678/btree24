@@ -94,6 +94,7 @@ bool BTreeNode::insertChild(std::span<uint8_t> key, PID child) {
 }
 
 bool BTreeNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
+    validate();
     assert(key.size() >= prefixLength);
     assert(span_compare(getPrefix(), key.subspan(0, prefixLength)) == 0);
     assert(span_compare(getLowerFence(), key) < 0);
@@ -112,7 +113,9 @@ bool BTreeNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
     }
     bool found;
     unsigned slotId = lowerBound(key, found);
+    validate();
     if (found) {
+        spaceUsed -= slot[slotId].keyLen + slot[slotId].payloadLen;
         storeKeyValue(slotId, key, payload);
     } else {
         memmove(slot + slotId + 1, slot + slotId, sizeof(Slot) * (count - slotId));
@@ -120,6 +123,7 @@ bool BTreeNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
         count++;
         updateHint(slotId);
     }
+    validate();
     return true;
 }
 
@@ -335,13 +339,14 @@ PID BTreeNode::lookupInner(std::span<uint8_t> key) {
 SeparatorInfo BTreeNode::findSeparator() {
     constexpr bool USE_ORIGINAL = false;
 
-    ASSUME(count > 1);
+    ASSUME(count > 2);
     ASSUME(enablePrefix || prefixLength == 0);
     if (isInner()) {
         // inner nodes are split in the middle
         unsigned slotId = count / 2 - 1;
         return SeparatorInfo{static_cast<unsigned>(prefixLength + slot[slotId].keyLen), slotId, false};
     }
+
 
     // find good separator slot
     unsigned lower = count / 2 - count / 32;
@@ -352,7 +357,6 @@ SeparatorInfo BTreeNode::findSeparator() {
         return SeparatorInfo{prefixLength + rangeCommonPrefix, lower, false};
     }
     for (unsigned i = lower + 1;; ++i) {
-        assert(i < upper + 1);
         if (getKey(i)[rangeCommonPrefix] != getKey(lower)[rangeCommonPrefix]) {
             if (slot[i].keyLen == rangeCommonPrefix + 1)
                 return SeparatorInfo{prefixLength + rangeCommonPrefix + 1, i, false};
@@ -412,6 +416,8 @@ void BTreeNode::splitNode(AnyNode *parent, unsigned sepSlot, uint8_t *sepKey, un
     }
     left->makeHint();
     nodeRight->makeHint();
+    left->validate();
+    nodeRight->validate();
     memcpy(reinterpret_cast<char *>(this), nodeRight, isLeaf() ? pageSizeLeaf : pageSizeInner);
 }
 
@@ -518,4 +524,14 @@ bool BTreeNode::tryConvertToHash() {
     tmp.validate();
     memcpy(this, &tmp, pageSizeLeaf);
     return true;
+}
+
+void BTreeNode::validate() {
+#ifdef NDEBUG
+    return;
+#endif
+    unsigned spaceUsed = getLowerFence().size() + getUpperFence().size();
+    for (int i = 0; i < count; ++i)
+        spaceUsed += slot[i].keyLen + slot[i].payloadLen;
+    assert(spaceUsed == this->spaceUsed);
 }

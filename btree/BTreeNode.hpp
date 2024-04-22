@@ -47,7 +47,6 @@ struct BTreeNode : public BTreeNodeHeader {
         Slot slot[1];     // grows from front
         uint8_t heap[1];  // grows from back
     };
-
     // this struct does not have appropriate size.
     // Get Some storage location and call init.
     // However, this declaration breaks gdb, so we do not use it on debug builds
@@ -153,7 +152,7 @@ struct BTreeNode : public BTreeNodeHeader {
 
     void restoreKeyExclusive(std::span<uint8_t> keyOut, unsigned index);
 
-    void validateHint();
+    void validate();
 
     bool hasBadHeads();
 

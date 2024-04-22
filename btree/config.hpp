@@ -6,17 +6,17 @@
 
 constexpr bool enablePrefix = true;
 constexpr bool enableBasicHead = true;
-constexpr bool enableDense = true;
-constexpr bool enableHash = true;
+constexpr bool enableDense = false;
+constexpr bool enableHash = false;
 constexpr unsigned basicHintCount = 16;
 constexpr bool enableDense2 = false;
-constexpr bool enableHashAdapt = true;
-constexpr bool enableDensifySplit = true;
+constexpr bool enableHashAdapt = false;
+constexpr bool enableDensifySplit = false;
 constexpr const char *configName = "dev_config_name";
-constexpr unsigned maxKvSize = 1024;
 constexpr unsigned pageSize = 1 << 12;
 constexpr unsigned pageSizeLeaf = pageSize;
 constexpr unsigned pageSizeInner = pageSize;
+constexpr unsigned maxKvSize = (pageSize - 128) / 5;
 
 #ifdef NDEBUG
 constexpr bool IS_DEBUG=false;

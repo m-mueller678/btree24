@@ -6,6 +6,7 @@
 #include <string>
 #include "PerfEvent.hpp"
 #include "common.hpp"
+#include "BTreeNode.hpp"
 #include <iostream>
 
 #include <zipfc.h>
@@ -253,8 +254,9 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                                                                   bool val_ok =
                                                                           ((keyState[returned_key] & BATCH_MASK) ==
                                                                            batch_convert.i) ||
-                                                                                (keyState[returned_key] & WRITE_BIT) &&
-                                                                                batch_convert.i == batch;
+                                                                                  (keyState[returned_key] &
+                                                                                   WRITE_BIT) &&
+                                                                                  batch_convert.i == batch;
                                                                   error |= !val_ok;
                                                               }
                                                               returned_key += 1;

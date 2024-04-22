@@ -93,6 +93,8 @@ bool AnyNode::splitNodeWithParent(AnyNode *parent, std::span<uint8_t> key) {
     Tag tag = this->tag();
     switch (tag) {
         case Tag::Leaf:
+            if (basic()->count <= 2)
+                return true;
             if (enableDensifySplit) {
                 uint8_t sepBuffer[BTreeNode::maxKVSize];
                 auto sep = DenseNode::densifySplit(sepBuffer, basic());
@@ -110,6 +112,8 @@ bool AnyNode::splitNodeWithParent(AnyNode *parent, std::span<uint8_t> key) {
             }
             // continue with normal node split
         case Tag::Inner: {
+            if (basic()->count <= 2)
+                return true;
             SeparatorInfo sepInfo = basic()->findSeparator();
             if (parent->innerRequestSpaceFor(
                     sepInfo.length)) {  // is there enough space in the parent for the separator?
@@ -122,8 +126,10 @@ bool AnyNode::splitNodeWithParent(AnyNode *parent, std::span<uint8_t> key) {
                 return false;
             }
         }
-        case Tag::Dense:
-        case Tag::Dense2: {
+        case Tag::Dense2:
+        case Tag::Dense: {
+            if (dense()->slotCount <= 2)
+                return true;
             if (parent->innerRequestSpaceFor(
                     dense()->fullKeyLen)) {  // is there enough space in the parent for the separator?
                 if (tag == Tag::Dense)
@@ -137,6 +143,8 @@ bool AnyNode::splitNodeWithParent(AnyNode *parent, std::span<uint8_t> key) {
             break;
         }
         case Tag::Hash: {
+            if (hash()->count <= 2)
+                return true;
             hash()->sort();
             SeparatorInfo sepInfo = hash()->findSeparator();
             if (parent->innerRequestSpaceFor(
