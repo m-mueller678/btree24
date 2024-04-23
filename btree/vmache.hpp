@@ -33,7 +33,7 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 typedef u64 PID; // page id type
 
-struct alignas(4096) Page {
+struct alignas(pageSize) Page {
     TagAndDirty tagAndDirty;
 };
 

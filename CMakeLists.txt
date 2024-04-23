@@ -4,6 +4,7 @@ project(btree24)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+file(GLOB CONFIG_HEADERS "btree/configs/*.hpp")
 add_executable(btree24 btree/main.cpp
         btree/PerfEvent.hpp
         btree/DataStructureWrapper.cpp
@@ -26,6 +27,7 @@ add_executable(btree24 btree/main.cpp
         btree/SeparatorInfo.hpp
         btree/common.hpp
         btree/common.cpp
+        ${CONFIG_HEADERS}
 )
 
 add_subdirectory(zipfc)
@@ -51,4 +53,18 @@ ENDIF (asan)
 
 if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(FATAL_ERROR "You probably want to use clang to compile this, as gcc does not support some SIMD stuff we use in HashLeaf")
+endif ()
+
+option(CONFIG_VARIANT "Choose a value for CONFIG_VARIANT.hpp")
+
+if (CONFIG_VARIANT)
+    add_definitions(-DBTREE_CMAKE_CONFIG_INCLUDE=\"configs/${CONFIG_VARIANT}.hpp\")
+    add_definitions(-DBTREE_CMAKE_CONFIG_NAME=\"${CONFIG_VARIANT}\")
+endif ()
+
+option(PAGE_SIZE "page size")
+if (PAGE_SIZE)
+    add_definitions(-DBTREE_CMAKE_PAGE_SIZE=${PAGE_SIZE})
+else ()
+    add_definitions(-DBTREE_CMAKE_PAGE_SIZE=4096)
 endif ()

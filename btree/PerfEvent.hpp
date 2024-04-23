@@ -284,6 +284,7 @@ inline BTreeCppPerfEvent makePerfEvent(std::string dataName, unsigned dataSize) 
     BTreeCppPerfEvent e;
     e.setParam("op", "none");
     e.setParam("config_name", configName);
+    e.setParam("page_size", pageSize);
     e.setParam("data_name", dataName);
     e.setParam("data_size", dataSize);
     return e;

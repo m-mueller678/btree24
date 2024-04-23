@@ -306,20 +306,6 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
 
 
 int main(int argc, char *argv[]) {
-    if (false) {
-        std::minstd_rand rng;
-        std::uniform_int_distribution dist(1, 10000);
-        int hits = 0;
-        int samples = 1000000;
-        for (int i = 0; i < samples; ++i) {
-            auto a = dist(rng);
-            auto b = dist(rng);
-            hits += a == b;
-        }
-        std::cout << hits << std::endl;
-        return 0;
-    }
-    bool dryRun = getenv("DRYRUN");
     unsigned threadCount = envu64("THREADS");
     unsigned rand_seed = getenv("SEED") ? envu64("SEED") : time(NULL);
     ZIPFC_RNG = create_zipfc_rng(rand_seed, 0, "main");
