@@ -14,7 +14,6 @@ use std::fs::File;
 use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader};
 use std::mem::{size_of, MaybeUninit};
-use std::ptr::hash;
 use std::slice::from_raw_parts;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::Relaxed;
