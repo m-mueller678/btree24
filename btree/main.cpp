@@ -58,18 +58,19 @@ static void runMulti(BTreeCppPerfEvent e,
                      Key *data,
                      unsigned keyCount,
                      unsigned payloadSize,
-                     unsigned opCountC,
-                     unsigned opCountE,
+                     unsigned workDuration,
                      double zipfParameter,
                      unsigned maxScanLength,
                      unsigned threadCount
 ) {
-    uint32_t *operationsC = generate_workload_c(ZIPFC_RNG, keyCount, zipfParameter, opCountC * threadCount);
-    uint32_t *operationsE = generate_workload_c(ZIPFC_RNG, keyCount, zipfParameter, opCountE * threadCount);
+    constexpr unsigned index_samples = 1 << 25;
+    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
 
     uint8_t *payloadPtr = makePayload(payloadSize);
     std::span payload{payloadPtr, payloadSize};
     unsigned preInsertCount = keyCount - keyCount / 10;
+    std::atomic_bool keepWorking = true;
+    std::atomic<uint64_t> ops_performed = 0;
 
     DataStructureWrapper t(isDataInt(e));
 
@@ -79,6 +80,8 @@ static void runMulti(BTreeCppPerfEvent e,
         // Start a thread and execute threadFunction with the thread ID as argument
         threads.emplace_back([&](unsigned tid) {
             uint8_t outBuffer[maxKvSize];
+            unsigned threadIndexOffset = index_samples / threadCount * tid;
+            unsigned local_ops_performed = 0;
             barrier.arrive_and_wait();
             for (uint64_t i = rangeStart(0, preInsertCount, threadCount, tid);
                  i < rangeStart(0, preInsertCount, threadCount, tid + 1); i++) {
@@ -94,34 +97,39 @@ static void runMulti(BTreeCppPerfEvent e,
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
             // ycsb-c
-            for (uint64_t i = 0; i < opCountC; i++) {
-                unsigned keyIndex = operationsC[tid * opCountC + i];
+            while (keepWorking.load(std::memory_order::relaxed)) {
+                unsigned keyIndex = zipfIndices[(threadIndexOffset + i) % index_samples];
                 assert(keyIndex < keyCount);
                 if (!t.lookup(data[keyIndex].span()))
                     abort();
+                local_ops_performed += 1;
             }
+            ops_performed += local_ops_performed;
             barrier.arrive_and_wait();
+            local_ops_performed = 0;
             std::minstd_rand local_rng(tid);
             std::uniform_int_distribution range_len_distribution(unsigned(1), maxScanLength);
             barrier.arrive_and_wait();
             // ycsb-e
-            for (uint64_t i = 0; i < opCountE; i++) {
-                unsigned index = operationsE[tid * opCountC + i];
+            while (keepWorking.load(std::memory_order::relaxed)) {
+                unsigned index = zipfIndices[(threadIndexOffset + i) % index_samples];
                 assert(index < keyCount);
                 unsigned scanLength = range_len_distribution(local_rng);
-                while (true) {
+                while (keepWorking.load(std::memory_order::relaxed)) {
                     unsigned scanCount = 0;
                     try {
                         t.range_lookup(data[index].span(), outBuffer, [&](unsigned keyLen, std::span<uint8_t> payload) {
                             scanCount += 1;
                             return scanCount == scanLength;
                         });
+                        local_ops_performed += 1;
                         break;
                     } catch (OLCRestartException e) {
                         continue;
                     }
                 }
             }
+            ops_performed += local_ops_performed;
             barrier.arrive_and_wait();
         }, i);
     }
@@ -133,22 +141,34 @@ static void runMulti(BTreeCppPerfEvent e,
             e.setParam("op", "insert90");
             BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
             barrier.arrive_and_wait();
-            // insert
+            // work
             barrier.arrive_and_wait();
         }
+        ops_performed.store(0);
         {
             e.setParam("op", "ycsb_c");
-            BTreeCppPerfEventBlock b(e, t, opCountC * threadCount);
+            BTreeCppPerfEventBlock b(e, t, 1);
             barrier.arrive_and_wait();
-            // insert
+            // work
+            sleep(workDuration);
+            keepWorking.store(false, std::memory_order::relaxed);
             barrier.arrive_and_wait();
+            keepWorking.store(true, std::memory_order::relaxed);
+            b.scale = ops_performed.load(std::memory_order::relaxed);
         }
+        ops_performed.store(0);
         {
             e.setParam("op", "ycsb_e");
-            BTreeCppPerfEventBlock b(e, t, opCountE * threadCount);
+            BTreeCppPerfEventBlock b(e, t, 1);
             barrier.arrive_and_wait();
+            //work
+            sleep(workDuration);
+            keepWorking.store(false, std::memory_order::relaxed);
             barrier.arrive_and_wait();
+            keepWorking.store(true, std::memory_order::relaxed);
+            b.scale = ops_performed.load(std::memory_order::relaxed);
         }
+        ops_performed.store(0);
     }
 
     // Wait for all threads to complete
@@ -335,7 +355,7 @@ int main(int argc, char *argv[]) {
     }
     std::string keySet = getenv("DATA");
     unsigned payloadSize = envu64("PAYLOAD_SIZE");
-    unsigned opCount = envu64("OP_COUNT");
+    unsigned duration = envu64("DURATION");
     double zipfParameter = envf64("ZIPF");
     double intDensity = envf64("DENSITY");
     uint64_t partition_count = envu64("PARTITION_COUNT");
@@ -371,7 +391,7 @@ int main(int argc, char *argv[]) {
             abort();
         }
         case 6: {
-            runMulti(e, data, keyCount, payloadSize, opCount, opCount, zipfParameter, maxScanLength, threadCount);
+            runMulti(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount);
             break;
         }
         default: {

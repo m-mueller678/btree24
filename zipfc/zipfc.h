@@ -20,7 +20,7 @@ Key *zipfc_load_keys(ZipfcRng *rng, const char *name, uint32_t count, double den
 
 ZipfcRng *create_zipfc_rng(uint64_t u64, uint64_t thread, const char *purpose);
 
-uint32_t *generate_workload_c(
+uint32_t *generate_zipf_indices(
         ZipfcRng *rng,
         uint32_t key_count,
         double zipf_parameter,

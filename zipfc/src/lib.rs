@@ -280,7 +280,7 @@ pub unsafe extern "C" fn create_zipfc_rng(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn generate_workload_c(
+pub unsafe extern "C" fn generate_zipf_indices(
     rng: *mut MainRng,
     key_count: u32,
     zipf_parameter: f64,
