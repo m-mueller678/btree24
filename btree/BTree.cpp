@@ -125,7 +125,7 @@ void BTree::ensureSpace(PID innerNode, std::span<uint8_t> key) {
     };
 }
 
-bool BTree::lookupImpl(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
+void BTree::lookupImpl(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback) {
     while (true) {
         try {
             GuardO<AnyNode> parent{metadataPid};
@@ -146,15 +146,17 @@ bool BTree::lookupImpl(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
                             node = std::move(nodeX).downgrade();
                             if (converted)continue;
                         }
-                        return node->basic()->lookupLeaf(key, valueOut);
+                        return node->basic()->lookupLeaf(key, callback);
                     }
                     case Tag::Dense:
                     case Tag::Dense2: {
-                        return node->dense()->lookup(key, valueOut);
+                        node->dense()->lookup(key, callback);
+                        return;
                     }
                     case Tag::Hash: {
                         node->hash()->rangeOpCounter.point_op();
-                        return node->hash()->lookup(key, valueOut);
+                        node->hash()->lookup(key, callback);
+                        return;
                     }
                     default:
                         ASSUME(false);

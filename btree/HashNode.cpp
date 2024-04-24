@@ -396,7 +396,7 @@ void HashNode::getSep(uint8_t *sepKeyOut, SeparatorInfo info) {
     memcpy(sepKeyOut + prefixLength, getKey(info.slot + info.isTruncated).data(), info.length - prefixLength);
 }
 
-bool HashNode::lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
+bool HashNode::lookup(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback) {
     rangeOpCounter.point_op();
     auto prefixLength = this->prefixLength;
     if (prefixLength > key.size()) {
@@ -404,10 +404,8 @@ bool HashNode::lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
     }
     int index = findIndex(key, compute_hash(key.subspan(prefixLength, key.size() - prefixLength)));
     if (index >= 0) {
-        valueOut = optimistic_memcpy(valueOut.data(), 0, getPayload(index));
-        return true;
+        callback(getPayload(index));
     }
-    return false;
 }
 
 

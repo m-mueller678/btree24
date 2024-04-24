@@ -133,7 +133,7 @@ struct BTreeNode : public BTreeNodeHeader {
 
     PID lookupInner(std::span<std::uint8_t> key);
 
-    bool lookupLeaf(std::span<uint8_t> key, std::span<uint8_t> &valueOut);
+    void lookupLeaf(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback);
 
     void destroy();
 

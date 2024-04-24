@@ -37,7 +37,7 @@ struct HashNode : public HashNodeHeader {
 
     unsigned estimateCapacity();
 
-    bool lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut);
+    bool lookup(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback);
 
     static uint8_t compute_hash(std::span<uint8_t> key);
 

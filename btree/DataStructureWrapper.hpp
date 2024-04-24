@@ -25,12 +25,12 @@ struct DataStructureWrapper {
 
     // valueOut must be at least maxKvSize. The btree does not check if the value fits.
     // Due optimistic locks, large values that have never been inserted may be written to valueOut.
-    bool lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut);
+    void lookup(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback);
 
     bool lookup(std::span<uint8_t> key) {
-        uint8_t out[maxKvSize];
-        std::span<uint8_t> out_span{out, maxKvSize};
-        return lookup(key, out_span);
+        bool found;
+        lookup(key, [&](auto value) { found = true; });
+        return found;
     }
 
     void insert(std::span<uint8_t> key, std::span<uint8_t> payload);

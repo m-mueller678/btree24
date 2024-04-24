@@ -290,19 +290,31 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                         } else {
                             if (phase == 1) {
                                 read_count += 1;
-                                bool found = tree.lookup(data[key_index].span(), outSpan);
-                                auto state = keyState[key_index].load(std::memory_order_relaxed);
-                                auto expected_version = state & BATCH_MASK;
-                                auto is_written = (state & WRITE_BIT) != 0;
-                                written_count += is_written;
-                                if (found) {
-                                    ensure(expected_version != 0 || is_written);
-                                    ensure(outSpan.size() == 4);
-                                    copySpan({batch_convert.b, 4}, outSpan);
-                                    ensure(batch_convert.i == expected_version ||
-                                           batch_convert.i == batch && is_written);
-                                } else {
-                                    ensure(expected_version == 0);
+                                while (true) {
+                                    bool found = false;
+                                    try {
+                                        tree.lookup(data[key_index].span(), [&](auto val) {
+                                            found = true;
+                                            memcpy(outBuffer, val.data(), val.size());
+                                            outSpan = {outBuffer, val.size()};
+                                        });
+                                    } catch (OLCRestartException) {
+                                        continue;
+                                    }
+                                    auto state = keyState[key_index].load(std::memory_order_relaxed);
+                                    auto expected_version = state & BATCH_MASK;
+                                    auto is_written = (state & WRITE_BIT) != 0;
+                                    written_count += is_written;
+                                    if (found) {
+                                        ensure(expected_version != 0 || is_written);
+                                        ensure(outSpan.size() == 4);
+                                        copySpan({batch_convert.b, 4}, outSpan);
+                                        ensure(batch_convert.i == expected_version ||
+                                               batch_convert.i == batch && is_written);
+                                    } else {
+                                        ensure(expected_version == 0);
+                                    }
+                                    break;
                                 }
                             }
                         }

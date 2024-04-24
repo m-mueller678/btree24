@@ -437,14 +437,13 @@ void BTreeNode::restoreKeyExclusive(std::span<uint8_t> keyOut, unsigned index) {
     memcpy(keyOut.data() + prefixLength, getKey(index).data(), keyOut.size() - prefixLength);
 }
 
-bool BTreeNode::lookupLeaf(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
+void BTreeNode::lookupLeaf(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback) {
     bool found;
     unsigned pos = lowerBound(key, found);
     if (!found)
-        return false;
+        return;
     auto payload = getPayload(pos);
-    valueOut = optimistic_memcpy(valueOut.data(), 0, payload);
-    return true;
+    callback(payload);
 }
 
 bool BTreeNode::hasBadHeads() {

@@ -37,25 +37,23 @@ std::span<uint8_t> DenseNode::getValD2(unsigned slotId) {
     return slice(recordOffset + 2, loadUnaligned<uint16_t>(ptr() + recordOffset));
 }
 
-bool DenseNode::lookup(std::span<uint8_t> key, std::span<uint8_t> &payloadOut) {
+void DenseNode::lookup(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback) {
     KeyError index = keyToIndex(key);
     if (index < 0)
-        return false;
+        return;
     if (tag() == Tag::Dense) {
         if (!isSlotPresent(index)) {
-            return false;
+            return;
         }
         if (valLen > maxKvSize)
             throw OLCRestartException();
-        payloadOut = {payloadOut.data(), valLen};
-        copySpan(payloadOut, getValD1(index));
-        return true;
+        callback(getValD1(index));
+        return;
     } else {
         if (!slots[index])
-            return false;
-        payloadOut = {payloadOut.data(), slotValLen(index)};
-        copySpan(payloadOut, getValD2(index));
-        return true;
+            return;
+        callback(getValD2(index));
+        return;
     }
 }
 

@@ -136,7 +136,7 @@ struct DenseNode : TagAndDirty {
 
     std::span<uint8_t> getValD2(unsigned i);
 
-    bool lookup(std::span<uint8_t> key, std::span<uint8_t> &payloadOut);
+    void lookup(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback);
 
     void updatePrefixLength();
 

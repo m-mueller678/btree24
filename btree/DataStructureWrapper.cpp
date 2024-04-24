@@ -23,18 +23,23 @@ void DataStructureWrapper::insert(std::span<uint8_t> key, std::span<uint8_t> pay
     return impl.insertImpl(key, payload);
 }
 
-bool DataStructureWrapper::lookup(std::span<uint8_t> key, std::span<uint8_t> &valueOut) {
-    bool found = impl.lookupImpl(key, valueOut);
+void DataStructureWrapper::lookup(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback) {
 #ifdef CHECK_TREE_OPS
+    bool found = false;
     auto std_found = std_map.find(toByteVector(key));
-    assert(found == (std_found != std_map.end()));
-    if (found) {
+    impl.lookupImpl(key, [](auto value){
+        found=true;
+        assert(std_found != std_map.end());
         auto &std_found_val = std_found->second;
-        assert(valueOut.size() == std_found_val.size());
-        assert(memcmp(std_found_val.data(), valueOut.data(), valueOut.size()) == 0);
+        assert(value.size() == std_found_val.size());
+        assert(memcmp(std_found_val.data(), value.data(), value.size()) == 0);
+    })
+    if (!found) {
+        assert(std_found == std_map.end());
     }
+#else
+    impl.lookupImpl(key, callback);
 #endif
-    return found;
 }
 
 void DataStructureWrapper::range_lookup(std::span<uint8_t> key, uint8_t *keyOutBuffer,
