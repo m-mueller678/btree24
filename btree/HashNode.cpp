@@ -396,7 +396,7 @@ void HashNode::getSep(uint8_t *sepKeyOut, SeparatorInfo info) {
     memcpy(sepKeyOut + prefixLength, getKey(info.slot + info.isTruncated).data(), info.length - prefixLength);
 }
 
-bool HashNode::lookup(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback) {
+void HashNode::lookup(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback) {
     rangeOpCounter.point_op();
     auto prefixLength = this->prefixLength;
     if (prefixLength > key.size()) {

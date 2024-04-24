@@ -173,15 +173,15 @@ bool DenseNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
                 ASSUME(false);
         }
         assert(keyIndex >= 0);
+        if (!requestSpaceFor(payload.size()))
+            return false;
         if (slots[keyIndex]) {
             spaceUsed -= loadUnaligned<uint16_t>(ptr() + slots[keyIndex]) + 2;
             slots[keyIndex] = 0;
-            occupiedCount -= 1;
+        } else {
+            occupiedCount += 1;
         }
-        if (!requestSpaceFor(payload.size()))
-            return false;
         insertSlotWithSpace(keyIndex, payload);
-        occupiedCount += 1;
         return true;
     }
 }
