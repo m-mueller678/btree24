@@ -28,7 +28,7 @@ struct DataStructureWrapper {
     void lookup(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback);
 
     bool lookup(std::span<uint8_t> key) {
-        bool found;
+        bool found = false;
         lookup(key, [&](auto value) { found = true; });
         return found;
     }

@@ -32,7 +32,9 @@ fi
 
 cd "$build_dir"
 
-cmake -DCMAKE_C_COMPILER=clang-15 \
+cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=clang-15 \
   -DCMAKE_CXX_COMPILER=clang++-15 \
   -DCONFIG_VARIANT="$config" \
   -DPAGE_SIZE="$pagesize" \
