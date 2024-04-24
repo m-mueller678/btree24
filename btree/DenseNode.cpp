@@ -11,6 +11,12 @@ unsigned DenseNode::fencesOffset() {
     return pageSizeLeaf - lowerFenceLen - max(upperFenceLen, fullKeyLen);
 }
 
+void validateDense2Count(DenseNode &node) {
+    int count = 0;
+    for (int i = 0; i < node.slotCount; ++i)
+        count += node.slots[i] != 0;
+    assert(count == node.occupiedCount);
+}
 
 std::span<uint8_t> DenseNode::getLowerFence() {
     return slice(pageSizeLeaf - lowerFenceLen, lowerFenceLen);
@@ -154,6 +160,7 @@ bool DenseNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
         copySpan(getValD1(keyIndex), payload);
         return true;
     } else {
+        validateDense2Count(*this);
         if (key.size() != fullKeyLen) {
             unsigned entrySize = occupiedCount * (fullKeyLen - prefixLength + sizeof(BTreeNode::Slot) - 2) + spaceUsed;
             if (entrySize + lowerFenceLen + upperFenceLen + sizeof(BTreeNodeHeader) <= pageSizeLeaf) {
@@ -173,8 +180,10 @@ bool DenseNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
                 ASSUME(false);
         }
         assert(keyIndex >= 0);
-        if (!requestSpaceFor(payload.size()))
+        if (!requestSpaceFor(payload.size())) {
+            validateDense2Count(*this);
             return false;
+        }
         if (slots[keyIndex]) {
             spaceUsed -= loadUnaligned<uint16_t>(ptr() + slots[keyIndex]) + 2;
             slots[keyIndex] = 0;
@@ -182,6 +191,7 @@ bool DenseNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
             occupiedCount += 1;
         }
         insertSlotWithSpace(keyIndex, payload);
+        validateDense2Count(*this);
         return true;
     }
 }
@@ -238,6 +248,7 @@ void DenseNode::splitNode1(AnyNode *parent, std::span<uint8_t> key) {
 }
 
 void DenseNode::splitNode2(AnyNode *parent, std::span<uint8_t> key) {
+    validateDense2Count(*this);
     assert(key.size() >= prefixLength);
     auto left = AnyNode::allocLeaf();
     auto leftDense = &left->_dense;
@@ -255,17 +266,23 @@ void DenseNode::splitNode2(AnyNode *parent, std::span<uint8_t> key) {
     restoreKey(arrayStart, fullKeyLen, getLowerFence().data(), splitKeyBuffer, splitSlot);
     leftDense->init2b(getLowerFence(), {splitKeyBuffer, fullKeyLen}, fullKeyLen, splitSlot + 1);
     for (unsigned i = 0; i <= splitSlot; ++i) {
-        if (slots[i])
+        if (slots[i]) {
             leftDense->insertSlotWithSpace(i, getValD2(i));
+            leftDense->occupiedCount += 1;
+        }
     }
     DenseNode right;
     right.init2b({splitKeyBuffer, fullKeyLen}, getUpperFence(), fullKeyLen, slotCount - splitSlot - 1);
     for (unsigned i = splitSlot + 1; i < slotCount; ++i) {
-        if (slots[i])
+        if (slots[i]) {
             right.insertSlotWithSpace(i - splitSlot - 1, getValD2(i));
+            right.occupiedCount += 1;
+        }
     }
     memcpy(this, &right, pageSizeLeaf);
     bool succ = parent->insertChild({splitKeyBuffer, leftDense->fullKeyLen}, left.pid);
+    validateDense2Count(right);
+    validateDense2Count(*this);
     ASSUME(succ);
 }
 
