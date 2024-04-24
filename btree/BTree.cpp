@@ -258,3 +258,35 @@ void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
     }
 }
 
+static void nodeCountVisit(AnyNode &node, std::array<uint32_t, TAG_END + 1> &counts) {
+    counts[static_cast<unsigned>(node.tag())] += 1;
+    switch (node.tag()) {
+        case Tag::Inner:
+            for (int i = 0; i <= node.basic()->count; ++i) {
+                GuardO<AnyNode> child((i == node.basic()->count) ? node.basic()->upper : node.basic()->getChild(i));
+                nodeCountVisit(*child.ptr, counts);
+            }
+            break;
+        case Tag::Leaf:
+            counts[TAG_END] += node.basic()->count;
+            break;
+        case Tag::Hash:
+            counts[TAG_END] += node.hash()->count;
+            break;
+        case Tag::Dense:
+        case Tag::Dense2:
+            counts[TAG_END] += node.dense()->occupiedCount;
+            break;
+    }
+}
+
+void BTree::nodeCount(std::array<uint32_t, TAG_END + 1> &counts) {
+    try {
+        GuardO<MetaDataPage> meta{metadataPid};
+        GuardO<AnyNode> node(meta->root, meta);
+        nodeCountVisit(*node.ptr, counts);
+    } catch (OLCRestartException) {
+        abort();
+    };
+}
+

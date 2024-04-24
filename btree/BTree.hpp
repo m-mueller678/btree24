@@ -23,6 +23,8 @@ struct BTree {
     void trySplit(GuardX<AnyNode> node, GuardX<AnyNode> parent, std::span<uint8_t> key);
 
     void ensureSpace(PID innerNode, std::span<uint8_t> key);
+
+    void nodeCount(std::array<uint32_t, TAG_END + 1> &counts);
 };
 
 
