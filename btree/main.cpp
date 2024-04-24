@@ -98,7 +98,7 @@ static void runMulti(BTreeCppPerfEvent e,
             barrier.arrive_and_wait();
             // ycsb-c
             while (keepWorking.load(std::memory_order::relaxed)) {
-                unsigned keyIndex = zipfIndices[(threadIndexOffset + i) % index_samples];
+                unsigned keyIndex = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
                 assert(keyIndex < keyCount);
                 if (!t.lookup(data[keyIndex].span()))
                     abort();
@@ -112,7 +112,7 @@ static void runMulti(BTreeCppPerfEvent e,
             barrier.arrive_and_wait();
             // ycsb-e
             while (keepWorking.load(std::memory_order::relaxed)) {
-                unsigned index = zipfIndices[(threadIndexOffset + i) % index_samples];
+                unsigned index = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
                 assert(index < keyCount);
                 unsigned scanLength = range_len_distribution(local_rng);
                 while (keepWorking.load(std::memory_order::relaxed)) {
