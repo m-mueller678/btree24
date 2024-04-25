@@ -2,23 +2,10 @@
 #include "vendor/wormhole/lib.h"
 #include "vendor/wormhole/kv.h"
 #include "vendor/wormhole/wh.h"
-#include "tuple.hpp"
 #include "btree/config.hpp"
 
 // TODO this uses the wh api, using the wormhole api might be more efficient, but needs more care about concurrency.
 //  https://github.com/wuxb45/wormhole
-
-struct kv *
-kvmap_mm_out_noop(struct kv *const kv, struct kv *const out) {
-    return kv;
-}
-
-const struct kvmap_mm kvmap_mm_btree = {
-        .in = kvmap_mm_in_noop,
-        .out = kvmap_mm_out_noop,
-        .free = kvmap_mm_free_free,
-        .priv = NULL,
-};
 
 WhBTreeAdapter::WhBTreeAdapter(bool isInt) {
     wh = wh_create();
