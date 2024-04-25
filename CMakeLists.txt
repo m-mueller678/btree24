@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 project(btree24)
 
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -28,10 +29,25 @@ add_executable(btree24 btree/main.cpp
         btree/common.hpp
         btree/common.cpp
         ${CONFIG_HEADERS}
+        # btree/TlxWrapper.cpp
+        # btree/TlxWrapper.hpp
 )
 
 add_subdirectory(zipfc)
+#add_subdirectory(vendor/bp-tree)
+
+#if(CONFIG_VARIANT STREQUAL "bp")
+#    include_directories(vendor/bp-tree/btree_tests/ParallelTools)
+#    include_directories(vendor/bp-tree/)
+#    add_subdirectory(vendor/bp-tree)
+#else ()
+#    include_directories(vendor/tlx/btree_tests/ParallelTools)
+#    include_directories(vendor/tlx/)
+#    add_subdirectory(vendor/tlx)
+#endif ()
+
 target_link_libraries(btree24 PRIVATE zipfc)
+# target_link_libraries(btree24 PRIVATE tlx)
 
 find_library(LIBAIO_LIBRARY NAMES aio)
 if (NOT LIBAIO_LIBRARY)
