@@ -198,7 +198,7 @@ fn generate_test(count: u32, rng: &mut MainRng) -> Vec<Key> {
     out.par_sort();
     out.dedup();
     {
-        println!("generating {} more keys", count as usize - out.len());
+        eprintln!("generating {} more keys", count as usize - out.len());
         let mut new_candidates = HashSet::new();
         let mut replacement_sequential: u64 = rng.gen();
         while out.len() + new_candidates.len() < count as usize {
