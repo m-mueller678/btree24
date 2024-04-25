@@ -7,3 +7,6 @@
 [submodule "vendor/hot"]
 	path = vendor/hot
 	url = git@github.com:speedskater/hot.git
+[submodule "vendor/wormhole"]
+	path = vendor/wormhole
+	url = git@github.com:wuxb45/wormhole.git

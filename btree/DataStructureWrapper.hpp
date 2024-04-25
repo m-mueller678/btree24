@@ -3,6 +3,7 @@
 
 #include "config.hpp"
 #include "BTree.hpp"
+#include "btree/adapters/wh_adapter.hpp"
 #include <map>
 
 struct DataStructureWrapper {
