@@ -4,3 +4,6 @@
 [submodule "vendor/tlx"]
 	path = vendor/tlx
 	url = git@github.com:wheatman/concurrent-btrees.git
+[submodule "vendor/hot"]
+	path = vendor/hot
+	url = git@github.com:speedskater/hot.git

@@ -29,11 +29,15 @@ add_executable(btree24 btree/main.cpp
         btree/common.hpp
         btree/common.cpp
         ${CONFIG_HEADERS}
+        #        btree/tuple.hpp
+        #        btree/hot_adapter.hpp
+        #        btree/hot_adapter.cpp
         # btree/TlxWrapper.cpp
         # btree/TlxWrapper.hpp
 )
 
 add_subdirectory(zipfc)
+#add_subdirectory(vendor/hot)
 #add_subdirectory(vendor/bp-tree)
 
 #if(CONFIG_VARIANT STREQUAL "bp")
@@ -47,6 +51,7 @@ add_subdirectory(zipfc)
 #endif ()
 
 target_link_libraries(btree24 PRIVATE zipfc)
+#target_link_libraries(btree24 PRIVATE hot)
 # target_link_libraries(btree24 PRIVATE tlx)
 
 find_library(LIBAIO_LIBRARY NAMES aio)
