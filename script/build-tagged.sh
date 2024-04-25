@@ -41,6 +41,6 @@ cmake \
   "$source_dir" \
    > btree_cmake_log 2>&1
 cmake --build . >> btree_cmake_log 2>&1
-mv btree24 "btree24-$commit_id"
+mv btree24 "btree24-$commit_id-$3-$4"
 
-echo $(pwd)/"btree24-$commit_id"
+echo $(pwd)/"btree24-$commit_id-$3-$4"
