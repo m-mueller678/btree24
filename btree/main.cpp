@@ -120,7 +120,7 @@ static void runMulti(BTreeCppPerfEvent e,
                     try {
                         t.range_lookup(data[index].span(), outBuffer, [&](unsigned keyLen, std::span<uint8_t> payload) {
                             scanCount += 1;
-                            return scanCount == scanLength;
+                            return scanCount < scanLength;
                         });
                         local_ops_performed += 1;
                         break;
