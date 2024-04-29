@@ -4,7 +4,7 @@
 
 #include <cstdint>
 #include <functional>
-#include <c++/11/span>
+#include <span>
 #include "Tag.hpp"
 #include "nodes.hpp"
 #include "functional"
