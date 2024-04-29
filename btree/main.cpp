@@ -16,6 +16,8 @@ using namespace std;
 
 static ZipfcRng *ZIPFC_RNG = nullptr;
 
+void runLargeInsert(unsigned int threadCount, unsigned int duration);
+
 static uint64_t envu64(const char *env) {
     if (getenv(env))
         return strtod(getenv(env), nullptr);
@@ -336,6 +338,59 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
     }
 }
 
+void runLargeInsert(unsigned int threadCount, unsigned int duration) {
+    std::atomic_bool keepWorking = true;
+    std::atomic<uint64_t> ops_performed = 0;
+
+    DataStructureWrapper t(false);
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < threadCount; ++i) {
+        // Start a thread and execute threadFunction with the thread ID as argument
+        threads.emplace_back([&](unsigned tid) {
+            auto rng = create_zipfc_rng(0, tid, "thread_rng");
+            std::array<uint64_t, 512> key_buffer;
+            fill_u64_single_thread(rng, key_buffer.data(), 1);
+            unsigned submission_threshold = key_buffer[0] % 5000 + 5000;
+            unsigned local_ops = 0;
+            while (keepWorking.load(std::memory_order::relaxed)) {
+                fill_u64_single_thread(rng, key_buffer.data(), key_buffer.size());
+                for (uint64_t &k: key_buffer) {
+                    uint64_t *kptr = &k;
+                    std::span<uint8_t> kspan{reinterpret_cast<uint8_t *>(kptr), 8};
+                    t.insert(kspan, kspan);
+                    local_ops += 1;
+                    if (local_ops == submission_threshold) {
+                        ops_performed.fetch_add(local_ops, std::memory_order::relaxed);
+                        local_ops = 0;
+                    }
+                }
+            }
+        }, i);
+    }
+    {
+        auto start_time = std::chrono::steady_clock::now();
+        // Main loop
+        for (int i = 0; i < duration * 10; ++i) {
+            // Sleep for one second
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+            // Calculate elapsed time
+            auto time = std::chrono::steady_clock::now();
+            auto current_ops = ops_performed.load(std::memory_order::relaxed);
+            auto elapsed_seconds =
+                    std::chrono::duration_cast<std::chrono::microseconds>(time - start_time).count() * 1e-6;
+
+            std::cout << elapsed_seconds << "," << current_ops << std::endl;
+        }
+        keepWorking = false;
+    }
+    // Wait for all threads to complete
+    for (auto &thread: threads) {
+        thread.join();
+    }
+}
+
 
 int main(int argc, char *argv[]) {
     unsigned threadCount = envu64("THREADS");
@@ -399,6 +454,10 @@ int main(int argc, char *argv[]) {
         case 401: {
             abort();
         }
+        case 402: {
+            runLargeInsert(threadCount, duration);
+            break;
+        }
         case 501: {
             abort();
         }
@@ -414,3 +473,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+

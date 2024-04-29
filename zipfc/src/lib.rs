@@ -14,7 +14,7 @@ use std::fs::File;
 use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader};
 use std::mem::{size_of, MaybeUninit};
-use std::slice::from_raw_parts;
+use std::slice::{from_raw_parts, from_raw_parts_mut};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::Relaxed;
 use rand_distr::Geometric;
@@ -298,6 +298,21 @@ pub unsafe extern "C" fn generate_zipf_indices(
     out.set_len(count as usize);
     //dbg!(&out);
     out.leak().as_ptr()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fill_u64_single_thread(
+    rng: *mut MainRng,
+    data:*mut u64,
+    count:u64,
+) {
+    let rng = &mut *rng;
+    {
+        let dst = from_raw_parts_mut(data as *mut MaybeUninit<u64>,count as usize);
+        dst.fill(MaybeUninit::zeroed());
+    }
+    let dst = from_raw_parts_mut(data,count as usize);
+    rng.fill(dst);
 }
 
 fn fill_zipf(rng: &mut Xoshiro256StarStar, dst: &mut [MaybeUninit<u32>], key_count: u32, p: f64) {
