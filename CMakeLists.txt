@@ -29,49 +29,12 @@ add_executable(btree24 btree/main.cpp
         btree/common.hpp
         btree/common.cpp
         ${CONFIG_HEADERS}
-        btree/adapters/wh_adapter.cpp
-        #        btree/tuple.hpp
-        #        btree/hot_adapter.hpp
-        #        btree/hot_adapter.cpp
-        # btree/TlxWrapper.cpp
-        # btree/TlxWrapper.hpp
 )
 
 add_subdirectory(zipfc)
-#add_subdirectory(vendor/hot)
-#add_subdirectory(vendor/bp-tree)
 
-#if(CONFIG_VARIANT STREQUAL "bp")
-#    include_directories(vendor/bp-tree/btree_tests/ParallelTools)
-#    include_directories(vendor/bp-tree/)
-#    add_subdirectory(vendor/bp-tree)
-#else ()
-#    include_directories(vendor/tlx/btree_tests/ParallelTools)
-#    include_directories(vendor/tlx/)
-#    add_subdirectory(vendor/tlx)
-#endif ()
-
-include(ExternalProject)
-
-ExternalProject_Add(
-        wormhole
-        PREFIX ${CMAKE_BINARY_DIR}/vendor/wormhole
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}/vendor/wormhole
-        BUILD_IN_SOURCE 1
-        CONFIGURE_COMMAND ""
-        BUILD_BYPRODUCTS ${CMAKE_SOURCE_DIR}/vendor/wormhole/libwh.so
-        BUILD_COMMAND make
-        INSTALL_COMMAND ""
-)
-
-
-add_dependencies(btree24 wormhole)
 target_link_libraries(btree24 PRIVATE zipfc)
 target_include_directories(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/)
-target_link_libraries(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/vendor/wormhole/libwh.so)
-
-#target_link_libraries(btree24 PRIVATE hot)
-# target_link_libraries(btree24 PRIVATE tlx)
 
 find_library(LIBAIO_LIBRARY NAMES aio)
 if (NOT LIBAIO_LIBRARY)
