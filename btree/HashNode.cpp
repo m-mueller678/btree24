@@ -487,8 +487,12 @@ unsigned HashNode::lowerBound(std::span<uint8_t> key, bool &found) {
     return lower;
 }
 
+bool HashNode::canConvertToBasic() {
+    return spaceUsed + count * sizeof(BTreeNode::Slot) + sizeof(BTreeNodeHeader) <= pageSizeLeaf;
+}
+
 bool HashNode::tryConvertToBasic() {
-    if (spaceUsed + count * sizeof(BTreeNode::Slot) + sizeof(BTreeNodeHeader) > pageSizeLeaf) {
+    if (!canConvertToBasic()) {
         return false;
     }
     sort();
@@ -500,3 +504,4 @@ bool HashNode::tryConvertToBasic() {
     memcpy(this, &tmp, pageSizeLeaf);
     return true;
 }
+

@@ -122,6 +122,8 @@ struct HashNode : public HashNodeHeader {
 
     void splitToBasic(AnyNode *parent, unsigned int sepSlot, std::span<uint8_t> sepKey);
 
+    bool canConvertToBasic();
+
     bool tryConvertToBasic();
 
     bool hasGoodHeads();

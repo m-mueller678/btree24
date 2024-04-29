@@ -218,7 +218,8 @@ void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
                 case Tag::Hash: {
                     node->hash()->rangeOpCounter.range_op();
                     bool sorted = node->hash()->isSorted();
-                    bool convert = node->hash()->rangeOpCounter.shouldConvertBasic();
+                    bool convert =
+                            node->hash()->rangeOpCounter.shouldConvertBasic() && node->hash()->canConvertToBasic();
                     if (!sorted || convert) {
                         GuardX<AnyNode> nodeX(std::move(node));
                         bool converted = false;
