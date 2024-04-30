@@ -289,6 +289,13 @@ struct BufferManager {
 
     BufferManager();
 
+    uint64_t hashPage(PID pid) {
+        uint64_t hash;
+        std::hash<std::string_view> hasher;
+        hash = hasher(std::string_view{reinterpret_cast<const char *>(virtMem + pid), pageSize});
+        return hash;
+    }
+
     ~BufferManager() {}
 
     Page *fixX(PID pid);

@@ -88,7 +88,7 @@ public:
 
     Tag tag() { return static_cast<Tag>(x & 127); }
 
-    void set_tag(Tag t) { x = static_cast<uint8_t>(t) | (x & 128); }
+    void set_tag(Tag t) { x = static_cast<uint8_t>(t) | 128; }
 
     void set_dirty(bool d) { x = x & 127 | static_cast<uint8_t>(d) << 7; }
 
