@@ -383,7 +383,7 @@ void runLargeInsert(unsigned int threadCount, unsigned int duration) {
             auto elapsed_seconds =
                     std::chrono::duration_cast<std::chrono::microseconds>(time - start_time).count() * 1e-6;
 
-            std::cout << elapsed_seconds << "," << current_ops << std::endl;
+            std::cout << elapsed_seconds << "," << current_ops << "," << threadCount << std::endl;
         }
         keepWorking = false;
     }
