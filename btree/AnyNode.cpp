@@ -40,11 +40,13 @@ HashNode *AnyNode::hash() {
 
 Tag AnyNode::tag() {
     Tag t = _tag_and_dirty.tag();
+#ifdef CHECK_TREE_OPS
     ASSUME(t == Tag::Inner || t == Tag::Leaf || t == Tag::Dense || t == Tag::Hash || t == Tag::Dense2);
     ASSUME(enableDense || t != Tag::Dense);
     ASSUME((enableDense2 && !enableHash) || t != Tag::Dense2);
     ASSUME(enableHash || t != Tag::Hash);
     ASSUME(!enableHash || enableHashAdapt || t != Tag::Leaf);
+#endif
     return t;
 }
 

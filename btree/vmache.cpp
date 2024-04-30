@@ -1,6 +1,6 @@
 #include "vmache.hpp"
 
-__thread uint16_t workerThreadId = 0;
+__thread uint16_t workerThreadId = ~0;
 __thread int32_t tpcchistorycounter = 0;
 
 void yield(u64 counter) {
@@ -110,8 +110,9 @@ Page *BufferManager::fixX(PID pid) {
             }
             case PageState::Marked:
             case PageState::Unlocked: {
-                if (ps.tryLockX(stateAndVersion))
+                if (ps.tryLockX(stateAndVersion)) {
                     return virtMem + pid;
+                }
                 break;
             }
         }
@@ -149,6 +150,13 @@ void BufferManager::unfixS(PID pid) {
 
 void BufferManager::unfixX(PID pid) {
     getPageState(pid).unlockX();
+}
+
+__thread std::atomic<uint64_t> guard_x_count = 0;
+
+void setVmcacheWorkerThreadId(uint16_t x) {
+    assert(x < maxWorkerThreads);
+    workerThreadId = x;
 }
 
 void BufferManager::readPage(PID pid) {
@@ -190,6 +198,7 @@ void BufferManager::evict() {
         });
     }
 
+    assert(workerThreadId < maxWorkerThreads);
     // 1. write dirty pages
     libaioInterface[workerThreadId].writePages(toWrite);
     writeCount += toWrite.size();

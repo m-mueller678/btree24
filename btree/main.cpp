@@ -81,6 +81,7 @@ static void runMulti(BTreeCppPerfEvent e,
     for (int i = 0; i < threadCount; ++i) {
         // Start a thread and execute threadFunction with the thread ID as argument
         threads.emplace_back([&](unsigned tid) {
+            setVmcacheWorkerThreadId(tid);
             uint8_t outBuffer[maxKvSize];
             unsigned threadIndexOffset = index_samples / threadCount * tid;
             unsigned local_ops_performed = 0;
@@ -348,6 +349,7 @@ void runLargeInsert(unsigned int threadCount, unsigned int duration) {
     for (int i = 0; i < threadCount; ++i) {
         // Start a thread and execute threadFunction with the thread ID as argument
         threads.emplace_back([&](unsigned tid) {
+            setVmcacheWorkerThreadId(tid);
             auto rng = create_zipfc_rng(0, tid, "thread_rng");
             std::array<uint64_t, 512> key_buffer;
             fill_u64_single_thread(rng, key_buffer.data(), 1);

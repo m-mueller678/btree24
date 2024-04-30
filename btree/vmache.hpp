@@ -37,12 +37,14 @@ struct alignas(pageSize) Page {
     TagAndDirty tagAndDirty;
 };
 
-static const int16_t maxWorkerThreads = 128;
+static const int16_t maxWorkerThreads = 256;
 
 #define die(msg) do { perror(msg); exit(EXIT_FAILURE); } while(0)
 
 // allocate memory using huge pages
 void *allocHuge(size_t size);
+
+void setVmcacheWorkerThreadId(uint16_t);
 
 // use when lock is not free
 void yield(u64 counter = 0);
@@ -446,6 +448,8 @@ private:
     GuardO() : pid(moved), ptr(nullptr) {}
 };
 
+extern __thread std::atomic<uint64_t> guard_x_count;
+
 template<class T>
 struct GuardX {
     PID pid;
@@ -465,6 +469,7 @@ struct GuardX {
     explicit GuardX(u64 pid) : pid(pid) {
         ptr = reinterpret_cast<T *>(bm.fixX(pid));
         reinterpret_cast<Page *>(ptr)->tagAndDirty.set_dirty(true);
+        guard_x_count.fetch_add(1, std::memory_order::relaxed);
     }
 
     explicit GuardX(GuardO<T> &&other) {
@@ -482,6 +487,7 @@ struct GuardX {
                     reinterpret_cast<Page *>(ptr)->tagAndDirty.set_dirty(true);
                     other.pid = moved;
                     other.ptr = nullptr;
+                    guard_x_count.fetch_add(1, std::memory_order::relaxed);
                     return;
                 }
             }
@@ -493,6 +499,7 @@ struct GuardX {
         GuardO<T> other{pid, ptr, bm.getPageState(pid).downgradeXtoO()};
         pid = moved;
         ptr = nullptr;
+        guard_x_count.fetch_sub(1, std::memory_order::relaxed);
         return other;
     }
 
@@ -500,6 +507,7 @@ struct GuardX {
         GuardX r;
         r.ptr = reinterpret_cast<T *>(bm.allocPage());
         r.pid = bm.toPID(r.ptr);
+        guard_x_count.fetch_add(1, std::memory_order::relaxed);
         return r;
     }
 
@@ -510,6 +518,7 @@ struct GuardX {
     GuardX &operator=(GuardX &&other) {
         if (pid != moved) {
             bm.unfixX(pid);
+            guard_x_count.fetch_sub(1, std::memory_order::relaxed);
         }
         pid = other.pid;
         ptr = other.ptr;
@@ -523,8 +532,10 @@ struct GuardX {
 
     // destructor
     ~GuardX() {
-        if (pid != moved)
+        if (pid != moved) {
+            guard_x_count.fetch_sub(1, std::memory_order::relaxed);
             bm.unfixX(pid);
+        }
     }
 
     T *operator->() {
@@ -535,6 +546,7 @@ struct GuardX {
     void release() {
         if (pid != moved) {
             bm.unfixX(pid);
+            guard_x_count.fetch_sub(1, std::memory_order::relaxed);
             pid = moved;
         }
     }
