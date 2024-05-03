@@ -44,11 +44,11 @@ impl Debug for Key {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut t = f.debug_tuple("Key");
         let bytes = unsafe { from_raw_parts(self.data, self.len as usize) };
-        let show_text =bytes.len() > 10 || bytes.iter().all(|x|x.is_ascii_graphic());
-        if show_text{
+        let show_text = bytes.len() > 10 || bytes.iter().all(|x| x.is_ascii_graphic());
+        if show_text {
             t.field(&String::from_utf8_lossy(bytes));
         }
-        if bytes.len() <=8 || !show_text{
+        if bytes.len() <= 8 || !show_text {
             t.field(&bytes);
         }
         t.finish()
@@ -83,17 +83,7 @@ pub unsafe extern "C" fn zipfc_load_keys(
     let keys = match name.to_str().unwrap() {
         "rng4" => generate_parallel::<u32>(count, rng),
         "rng8" => generate_parallel::<u32>(count, rng),
-        "int" => {
-            let gen_count = ((count as f64) / int_density).round();
-            assert!(gen_count < 1.0e9);
-            let mut generated: Vec<u32> = (0..gen_count as u32).into_par_iter().collect();
-            generated.par_shuffle(rng);
-            generated.truncate(count as usize);
-            generated
-                .into_par_iter()
-                .map(|x| Key::from_vec(x.to_be_bytes().to_vec()))
-                .collect()
-        }
+        "int" => gen_int_keys(count, int_density, rng),
         "partitioned_id" => {
             let mut next_id = vec![0u32; partition_count as usize];
             let dist = Uniform::new(0, partition_count);
@@ -111,23 +101,46 @@ pub unsafe extern "C" fn zipfc_load_keys(
                 })
                 .collect()
         }
-        "test" => {
-            generate_test(count, rng)
-        }
+        "test" => generate_test(count, rng),
         x => {
-            let path = x.strip_prefix("file:").expect("bad key set name");
-            let mut lines: Vec<Key> = BufReader::new(File::open(path).unwrap())
-                .lines()
-                .map(|l| Key::from_vec(l.unwrap().into_bytes()))
-                .collect();
-            lines.par_shuffle(rng);
-            lines.truncate(count as usize);
-            lines
+            if let Some(mix_path)=x.strip_prefix("mix:"){
+                [
+                    generate_parallel::<u32>(count / 4, rng),
+                    load_file_keys(count / 4, rng, &format!("{mix_path}/urls-short")),
+                    load_file_keys(count / 4, rng, &format!("{mix_path}/wiki")),
+                    gen_int_keys(count - count / 4*3, int_density, rng),
+                ].into_iter().flatten().collect()
+            }else{
+                let path = x.strip_prefix("file:").expect("bad key set name");
+                load_file_keys(count, rng, path)
+            }
         }
     };
     assert_eq!(keys.len(), count as usize);
     //dbg!(&keys);
     keys.leak().as_ptr()
+}
+
+fn load_file_keys(count: u32, rng: &mut MainRng, path: &str) -> Vec<Key> {
+    let mut lines: Vec<Key> = BufReader::new(File::open(path).unwrap())
+        .lines()
+        .map(|l| Key::from_vec(l.unwrap().into_bytes()))
+        .collect();
+    lines.par_shuffle(rng);
+    lines.truncate(count as usize);
+    lines
+}
+
+fn gen_int_keys(count: u32, int_density: f64, rng: &mut MainRng) -> Vec<Key> {
+    let gen_count = ((count as f64) / int_density).round();
+    assert!(gen_count < 1.0e9);
+    let mut generated: Vec<u32> = (0..gen_count as u32).into_par_iter().collect();
+    generated.par_shuffle(rng);
+    generated.truncate(count as usize);
+    generated
+        .into_par_iter()
+        .map(|x| Key::from_vec(x.to_be_bytes().to_vec()))
+        .collect()
 }
 
 fn rand_hash(x: &impl Hash) -> u64 {
@@ -169,7 +182,7 @@ fn generate_test(count: u32, rng: &mut MainRng) -> Vec<Key> {
                     if !key.is_empty() {
                         key.push(b'/');
                     }
-                    let choices = 2+segment_choice_dist.sample(&mut MainRng::seed_from_u64(segment_seed));
+                    let choices = 2 + segment_choice_dist.sample(&mut MainRng::seed_from_u64(segment_seed));
                     let word_id = rand_hash(&(segment_seed, r.gen::<u64>() % choices)) as usize % words.len();
                     segment_seed = rand_hash(&(word_id as u64, segment_seed));
                     key.extend_from_slice(words[word_id].as_bytes())
@@ -303,15 +316,15 @@ pub unsafe extern "C" fn generate_zipf_indices(
 #[no_mangle]
 pub unsafe extern "C" fn fill_u64_single_thread(
     rng: *mut MainRng,
-    data:*mut u64,
-    count:u64,
+    data: *mut u64,
+    count: u64,
 ) {
     let rng = &mut *rng;
     {
-        let dst = from_raw_parts_mut(data as *mut MaybeUninit<u64>,count as usize);
+        let dst = from_raw_parts_mut(data as *mut MaybeUninit<u64>, count as usize);
         dst.fill(MaybeUninit::zeroed());
     }
-    let dst = from_raw_parts_mut(data,count as usize);
+    let dst = from_raw_parts_mut(data, count as usize);
     rng.fill(dst);
 }
 

@@ -180,6 +180,110 @@ static void runMulti(BTreeCppPerfEvent e,
     }
 }
 
+
+static void runMixed(BTreeCppPerfEvent e,
+                     Key *data,
+                     unsigned keyCount,
+                     unsigned payloadSize,
+                     unsigned workDuration,
+                     double zipfParameter,
+                     unsigned maxScanLength,
+                     unsigned threadCount
+) {
+    constexpr unsigned index_samples = 1 << 25;
+    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
+    uint8_t *payloadPtr = makePayload(payloadSize);
+    std::span payload{payloadPtr, payloadSize};
+    unsigned preInsertCount = keyCount - keyCount / 10;
+    std::atomic_bool keepWorking = true;
+    std::atomic<uint64_t> ops_performed = 0;
+
+    DataStructureWrapper t(isDataInt(e));
+
+    std::vector<std::thread> threads;
+    std::barrier barrier{threadCount + 1};
+    for (int i = 0; i < threadCount; ++i) {
+        // Start a thread and execute threadFunction with the thread ID as argument
+        threads.emplace_back([&](unsigned tid) {
+            setVmcacheWorkerThreadId(tid);
+            uint8_t outBuffer[maxKvSize];
+            unsigned threadIndexOffset = index_samples / threadCount * tid;
+            unsigned local_ops_performed = 0;
+            for (uint64_t i = rangeStart(0, preInsertCount, threadCount, tid);
+                 i < rangeStart(0, preInsertCount, threadCount, tid + 1); i++) {
+                t.insert(data[i].span(), payload);
+            }
+            std::minstd_rand local_rng(tid);
+            std::uniform_int_distribution range_len_distribution(unsigned(1), maxScanLength);
+            auto rng = create_zipfc_rng(0, tid, "thread_rng");
+            std::array<uint8_t, 1 << 12> ops;
+            fill_u64_single_thread(rng, reinterpret_cast<uint64_t *>(ops.data()), ops.size() / 8);
+            barrier.arrive_and_wait();
+            barrier.arrive_and_wait();
+            while (keepWorking.load(std::memory_order::relaxed)) {
+                local_ops_performed += 1;
+                if (local_ops_performed % ops.size() == 0) {
+                    fill_u64_single_thread(rng, reinterpret_cast<uint64_t *>(ops.data()), ops.size() / 8);
+                }
+                unsigned keyIndex = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
+                uint8_t op_type = ops[local_ops_performed % ops.size()];
+                if (op_type < 32) {
+                    t.insert(data[keyIndex].span(), payload);
+                } else if (op_type < 64) {
+                    //scan
+                    unsigned scanLength = range_len_distribution(local_rng);
+                    while (keepWorking.load(std::memory_order::relaxed)) {
+                        unsigned scanCount = 0;
+                        try {
+                            t.range_lookup(data[keyIndex].span(), outBuffer,
+                                           [&](unsigned keyLen, std::span<uint8_t> payload) {
+                                               scanCount += 1;
+                                               return scanCount < scanLength;
+                                           });
+                            break;
+                        } catch (OLCRestartException e) {
+                            continue;
+                        }
+                    }
+                } else {
+                    //lookup
+                    while (keepWorking.load(std::memory_order::relaxed)) {
+                        try {
+                            unsigned len = payloadSize;
+                            t.lookup(data[keyIndex].span(), [&](auto val) { len = val.size(); });
+                            if (len != payloadSize)
+                                abort();
+                            break;
+                        } catch (OLCRestartException e) {
+                            continue;
+                        }
+                    }
+                }
+            }
+            ops_performed += local_ops_performed - 1;
+            barrier.arrive_and_wait();
+        }, i);
+    }
+    {
+        barrier.arrive_and_wait();
+        {
+            e.setParam("op", "mixed161");
+            BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
+            barrier.arrive_and_wait();
+            sleep(workDuration);
+            keepWorking.store(false, std::memory_order::relaxed);
+            // work
+            barrier.arrive_and_wait();
+            b.scale = ops_performed;
+        }
+    }
+
+    // Wait for all threads to complete
+    for (auto &thread: threads) {
+        thread.join();
+    }
+}
+
 void ensure(bool x) {
     if (!x)
         abort();
@@ -465,6 +569,10 @@ int main(int argc, char *argv[]) {
         }
         case 6: {
             runMulti(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount);
+            break;
+        }
+        case 601: {
+            runMixed(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount);
             break;
         }
         default: {

@@ -81,6 +81,10 @@ struct BTreeCppPerfEvent {
         registerCounter("LLC_miss", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES);
         registerCounter("br_miss", PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_MISSES);
         registerCounter("task", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_TASK_CLOCK);
+
+        registerCounter("task", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_TASK_CLOCK);
+        registerCounter("task", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_TASK_CLOCK);
+
         // additional counters can be found in linux/perf_event.h
 
         for (unsigned i = 0; i < events.size(); i++) {
