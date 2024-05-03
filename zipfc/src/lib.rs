@@ -104,12 +104,14 @@ pub unsafe extern "C" fn zipfc_load_keys(
         "test" => generate_test(count, rng),
         x => {
             if let Some(mix_path)=x.strip_prefix("mix:"){
-                [
+                let mut k:Vec<Key>=[
                     generate_parallel::<u32>(count / 4, rng),
                     load_file_keys(count / 4, rng, &format!("{mix_path}/urls-short")),
                     load_file_keys(count / 4, rng, &format!("{mix_path}/wiki")),
                     gen_int_keys(count - count / 4*3, int_density, rng),
-                ].into_iter().flatten().collect()
+                ].into_iter().flatten().collect();
+                k.par_shuffle(rng);
+                k
             }else{
                 let path = x.strip_prefix("file:").expect("bad key set name");
                 load_file_keys(count, rng, path)
