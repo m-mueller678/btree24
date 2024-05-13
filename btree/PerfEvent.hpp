@@ -72,7 +72,8 @@ struct BTreeCppPerfEvent {
 
     BTreeCppPerfEvent() : printHeader(true) {
         registerCounter("cycle", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES);
-        // registerCounter("kcycle", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES, true);
+        registerCounter("stall_b", PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_BACKEND);
+        registerCounter("stall_f", PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_FRONTEND);
         // registerCounter("scycle", PERF_TYPE_RAW, 0x43FFAE);  // zen3
         registerCounter("instr", PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
         // registerCounter("L1-miss", PERF_TYPE_HW_CACHE,
@@ -80,9 +81,6 @@ struct BTreeCppPerfEvent {
         registerCounter("L1_miss", PERF_TYPE_RAW, 0x43FF44);  // zen4
         registerCounter("LLC_miss", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES);
         registerCounter("br_miss", PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_MISSES);
-        registerCounter("task", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_TASK_CLOCK);
-
-        registerCounter("task", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_TASK_CLOCK);
         registerCounter("task", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_TASK_CLOCK);
 
         // additional counters can be found in linux/perf_event.h
