@@ -33,6 +33,14 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 typedef u64 PID; // page id type
 
+#ifdef NOSYNC
+#define NOSYNC_RET(x) return x;
+#define NOSYNC_ABORT abort();
+#else
+#define NOSYNC_RET(x) ;
+#define NOSYNC_ABORT ;
+#endif
+
 struct alignas(pageSize) Page {
     TagAndDirty tagAndDirty;
 };
@@ -71,20 +79,24 @@ struct PageState {
     }
 
     bool tryLockX(u64 oldStateAndVersion) {
+        NOSYNC_RET(true);
         return stateAndVersion.compare_exchange_strong(oldStateAndVersion, sameVersion(oldStateAndVersion, Locked));
     }
 
     void unlockX() {
+        NOSYNC_RET();
         assert(getState() == Locked);
         stateAndVersion.store(nextVersion(stateAndVersion.load(), Unlocked), std::memory_order_release);
     }
 
     void unlockXEvicted() {
+        NOSYNC_ABORT;
         assert(getState() == Locked);
         stateAndVersion.store(nextVersion(stateAndVersion.load(), Evicted), std::memory_order_release);
     }
 
     u64 downgradeXtoO() {
+        NOSYNC_RET(stateAndVersion.load());
         auto next = nextVersion(stateAndVersion.load(), Unlocked);
         assert(getState() == Locked);
         stateAndVersion.store(next, std::memory_order_release);
@@ -92,6 +104,7 @@ struct PageState {
     }
 
     bool tryLockS(u64 oldStateAndVersion) {
+        NOSYNC_RET(true);
         u64 s = getState(oldStateAndVersion);
         if (s < MaxShared)
             return stateAndVersion.compare_exchange_strong(oldStateAndVersion, sameVersion(oldStateAndVersion, s + 1));
@@ -101,6 +114,7 @@ struct PageState {
     }
 
     void unlockS() {
+        NOSYNC_RET();
         while (true) {
             u64 oldStateAndVersion = stateAndVersion.load();
             u64 state = getState(oldStateAndVersion);
@@ -111,6 +125,7 @@ struct PageState {
     }
 
     bool tryMark(u64 oldStateAndVersion) {
+        NOSYNC_RET(true);
         assert(getState(oldStateAndVersion) == Unlocked);
         return stateAndVersion.compare_exchange_strong(oldStateAndVersion, sameVersion(oldStateAndVersion, Marked));
     }

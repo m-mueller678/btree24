@@ -27,13 +27,13 @@ void DataStructureWrapper::lookup(std::span<uint8_t> key, std::function<void(std
 #ifdef CHECK_TREE_OPS
     bool found = false;
     auto std_found = std_map.find(toByteVector(key));
-    impl.lookupImpl(key, [](auto value){
+    impl.lookupImpl(key, [&](auto value){
         found=true;
         assert(std_found != std_map.end());
         auto &std_found_val = std_found->second;
         assert(value.size() == std_found_val.size());
         assert(memcmp(std_found_val.data(), value.data(), value.size()) == 0);
-    })
+    });
     if (!found) {
         assert(std_found == std_map.end());
     }

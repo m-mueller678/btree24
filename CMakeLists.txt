@@ -49,6 +49,11 @@ IF (check_tree_ops)
     target_compile_definitions(btree24 PRIVATE CHECK_TREE_OPS=1)
 ENDIF (check_tree_ops)
 
+option(nosync "nosync" OFF)
+IF (nosync)
+    target_compile_definitions(btree24 PRIVATE NOSYNC=1)
+ENDIF (nosync)
+
 option(asan "enable asan" OFF)
 IF (asan)
     add_compile_options(-fsanitize=address)

@@ -90,6 +90,7 @@ Page *BufferManager::allocPage() {
 
 
 void BufferManager::handleFault(PID pid) {
+    NOSYNC_ABORT;
     physUsedCount++;
     ensureFreePages();
     readPage(pid);
@@ -97,6 +98,7 @@ void BufferManager::handleFault(PID pid) {
 }
 
 Page *BufferManager::fixX(PID pid) {
+    NOSYNC_RET(toPtr(pid));
     PageState &ps = getPageState(pid);
     for (u64 repeatCounter = 0;; repeatCounter++) {
         u64 stateAndVersion = ps.stateAndVersion.load();
@@ -121,6 +123,7 @@ Page *BufferManager::fixX(PID pid) {
 }
 
 Page *BufferManager::fixS(PID pid) {
+    NOSYNC_RET(toPtr(pid));
     PageState &ps = getPageState(pid);
     for (u64 repeatCounter = 0;; repeatCounter++) {
         u64 stateAndVersion = ps.stateAndVersion;
@@ -145,10 +148,12 @@ Page *BufferManager::fixS(PID pid) {
 }
 
 void BufferManager::unfixS(PID pid) {
+    NOSYNC_RET();
     getPageState(pid).unlockS();
 }
 
 void BufferManager::unfixX(PID pid) {
+    NOSYNC_RET();
     getPageState(pid).unlockX();
 }
 
@@ -160,6 +165,7 @@ void setVmcacheWorkerThreadId(uint16_t x) {
 }
 
 void BufferManager::readPage(PID pid) {
+    NOSYNC_ABORT;
     if (useExmap) {
         abort();
     } else {
@@ -170,6 +176,7 @@ void BufferManager::readPage(PID pid) {
 }
 
 void BufferManager::evict() {
+    NOSYNC_ABORT;
     std::vector<PID> toEvict;
     toEvict.reserve(batch);
     std::vector<PID> toWrite;
@@ -239,7 +246,7 @@ void BufferManager::evict() {
     physUsedCount -= toEvict.size();
 }
 
-void PageState::init() { stateAndVersion.store(sameVersion(0, Evicted), std::memory_order_release); }
+void PageState::init() { stateAndVersion.store(sameVersion(0, Unlocked), std::memory_order_release); }
 
 ResidentPageSet::ResidentPageSet(u64 maxCount) : count(next_pow2(maxCount * 1.5)), mask(count - 1), clockPos(0) {
     ht = (Entry *) allocHuge(count * sizeof(Entry));

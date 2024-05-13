@@ -32,15 +32,26 @@ fi
 
 cd "$build_dir"
 
+if [ -n "$NOSYNC" ]; then
+    nosync_tag="-nosync"
+    nosync_flag="-Dnosync=ON"
+else
+    nosync_tag=""
+    nosync_flag="-Dnosync=OFF"
+fi
+
 cmake \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER=clang-15 \
   -DCMAKE_CXX_COMPILER=clang++-15 \
   -DCONFIG_VARIANT="$config" \
   -DPAGE_SIZE="$pagesize" \
+  "$nosync_flag" \
   "$source_dir" \
    > btree_cmake_log 2>&1
 cmake --build . >> btree_cmake_log 2>&1
-mv btree24 "btree24-$commit_id-$3-$4"
+bin_name="btree24-$commit_id-$3-$4$nosync_tag"
 
-echo $(pwd)/"btree24-$commit_id-$3-$4"
+mv btree24 "$bin_name"
+
+echo $(pwd)/"$bin_name"
