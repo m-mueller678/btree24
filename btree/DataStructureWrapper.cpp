@@ -38,7 +38,7 @@ void DataStructureWrapper::lookup(std::span<uint8_t> key, std::function<void(std
         assert(std_found == std_map.end());
     }
 #else
-    impl.lookupImpl(key, callback);
+    impl.lookupImpl(key, std::move(callback));
 #endif
 }
 

@@ -126,44 +126,40 @@ void BTree::ensureSpace(PID innerNode, std::span<uint8_t> key) {
 }
 
 void BTree::lookupImpl(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback) {
+    GuardO<AnyNode> parent{metadataPid};
+    GuardO<AnyNode> node(reinterpret_cast<MetaDataPage *>(parent.ptr)->root, parent);
+
+    while (node->isAnyInner()) {
+        parent = std::move(node);
+        node = GuardO<AnyNode>(parent->lookupInner(key), parent);
+    }
+
     while (true) {
-        try {
-            GuardO<AnyNode> parent{metadataPid};
-            GuardO<AnyNode> node(reinterpret_cast<MetaDataPage *>(parent.ptr)->root, parent);
-
-            while (node->isAnyInner()) {
-                parent = std::move(node);
-                node = GuardO<AnyNode>(parent->lookupInner(key), parent);
-            }
-
-            while (true) {
-                switch (node->tag()) {
-                    case Tag::Leaf: {
-                        node->basic()->rangeOpCounter.point_op();
-                        if (node->basic()->rangeOpCounter.shouldConvertHash()) {
-                            GuardX<AnyNode> nodeX(std::move(node));
-                            bool converted = nodeX->basic()->tryConvertToHash();
-                            node = std::move(nodeX).downgrade();
-                            if (converted)continue;
-                        }
-                        return node->basic()->lookupLeaf(key, callback);
-                    }
-                    case Tag::Dense:
-                    case Tag::Dense2: {
-                        node->dense()->lookup(key, callback);
-                        return;
-                    }
-                    case Tag::Hash: {
-                        node->hash()->rangeOpCounter.point_op();
-                        node->hash()->lookup(key, callback);
-                        return;
-                    }
-                    default:
-                        ASSUME(false);
+        switch (node->tag()) {
+            case Tag::Leaf: {
+                node->basic()->rangeOpCounter.point_op();
+                if (node->basic()->rangeOpCounter.shouldConvertHash()) {
+                    GuardX<AnyNode> nodeX(std::move(node));
+                    bool converted = nodeX->basic()->tryConvertToHash();
+                    node = std::move(nodeX).downgrade();
+                    if (converted)continue;
                 }
-                break;
+                return node->basic()->lookupLeaf(key, std::move(callback));
             }
-        } catch (const OLCRestartException &) { yield(); }
+            case Tag::Dense:
+            case Tag::Dense2: {
+                node->dense()->lookup(key, std::move(callback));
+                return;
+            }
+            case Tag::Hash: {
+                node->hash()->rangeOpCounter.point_op();
+                node->hash()->lookup(key, std::move(callback));
+                return;
+            }
+            default:
+                ASSUME(false);
+        }
+        break;
     }
 }
 
