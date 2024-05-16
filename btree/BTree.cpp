@@ -87,7 +87,7 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
             GuardX<AnyNode> parentLocked{std::move(parent)};
             trySplit(std::move(nodeLocked), std::move(parentLocked), key);
             // insert hasn't happened, restart from root
-        } catch (const OLCRestartException &) { yield(); }
+        } catch (const OLCRestartException &) { vmcache_yield(); }
     }
 }
 

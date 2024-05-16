@@ -3,10 +3,6 @@
 __thread uint16_t workerThreadId = ~0;
 __thread int32_t tpcchistorycounter = 0;
 
-void yield(u64 counter) {
-    _mm_pause();
-}
-
 void *allocHuge(size_t size) {
     void *p = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     madvise(p, size, MADV_HUGEPAGE);
@@ -118,7 +114,7 @@ Page *BufferManager::fixX(PID pid) {
                 break;
             }
         }
-        yield(repeatCounter);
+        vmcache_yield(repeatCounter);
     }
 }
 
@@ -143,7 +139,7 @@ Page *BufferManager::fixS(PID pid) {
                     return virtMem + pid;
             }
         }
-        yield(repeatCounter);
+        vmcache_yield(repeatCounter);
     }
 }
 

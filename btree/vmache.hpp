@@ -55,7 +55,9 @@ void *allocHuge(size_t size);
 void setVmcacheWorkerThreadId(uint16_t);
 
 // use when lock is not free
-void yield(u64 counter = 0);
+inline void vmcache_yield(u64 counter = 0) {
+    _mm_pause();
+}
 
 struct PageState {
     std::atomic<u64> stateAndVersion;
@@ -128,6 +130,14 @@ struct PageState {
         NOSYNC_RET(true);
         assert(getState(oldStateAndVersion) == Unlocked);
         return stateAndVersion.compare_exchange_strong(oldStateAndVersion, sameVersion(oldStateAndVersion, Marked));
+    }
+
+    // check if is none of Marked, Locked, or Evicted
+    static bool isNotMLE(u64 state) {
+        assert(Marked >= 0xfd);
+        assert(Evicted >= 0xfd);
+        assert(Locked >= 0xfd);
+        return state < (((u64) (0xfd)) << 56);
     }
 
     static u64 getState(u64 v) { return v >> 56; };
@@ -381,6 +391,10 @@ struct GuardO {
         PageState &ps = bm.getPageState(pid);
         for (u64 repeatCounter = 0;; repeatCounter++) {
             u64 v = ps.stateAndVersion.load();
+            if (PageState::isNotMLE(v)) {
+                version = v;
+                return;
+            }
             switch (PageState::getState(v)) {
                 case PageState::Marked: {
                     u64 newV = PageState::sameVersion(v, PageState::Unlocked);
@@ -399,10 +413,9 @@ struct GuardO {
                     }
                     break;
                 default:
-                    version = v;
-                    return;
+                    abort();
             }
-            yield(repeatCounter);
+            vmcache_yield(repeatCounter);
         }
     }
 
@@ -513,7 +526,7 @@ struct GuardX {
                     return;
                 }
             }
-            yield(repeatCounter);
+            vmcache_yield(repeatCounter);
         }
     }
 
