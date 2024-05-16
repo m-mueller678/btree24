@@ -401,7 +401,7 @@ void BTreeNode::splitNode(AnyNode *parent, unsigned sepSlot, uint8_t *sepKey, un
     tmp.node.init(isLeaf(), rangeOpCounter);
     BTreeNode *nodeRight = &tmp.node;
     nodeRight->setFences({sepKey, sepLength}, getUpperFence());
-    bool succ = parent->insertChild({sepKey, sepLength}, nodeLeft.pid);
+    bool succ = parent->insertChild({sepKey, sepLength}, nodeLeft.pid());
     ASSUME(succ);
     if (isLeaf()) {
         copyKeyValueRange(left, 0, 0, sepSlot + 1);
@@ -467,7 +467,7 @@ void BTreeNode::splitToHash(AnyNode *parent, unsigned sepSlot, std::span<uint8_t
     leftHash->init(getLowerFence(), sepKey, capacity, rangeOpCounter);
     HashNode right;
     right.init(sepKey, getUpperFence(), capacity, rangeOpCounter);
-    bool succ = parent->insertChild(sepKey, nodeLeft.pid);
+    bool succ = parent->insertChild(sepKey, nodeLeft.pid());
     assert(succ);
     copyKeyValueRangeToHash(leftHash, 0, 0, sepSlot + 1);
     copyKeyValueRangeToHash(&right, 0, leftHash->count, count - leftHash->count);

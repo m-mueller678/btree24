@@ -26,8 +26,8 @@ BTree::~BTree() {
 BTree::BTree(bool isInt) {
     auto root = (enableHash && !enableHashAdapt) ? HashNode::makeRootLeaf() : BTreeNode::makeLeaf();
     auto metadata = GuardX<MetaDataPage>::alloc();
-    metadata->root = root.pid;
-    this->metadataPid = metadata.pid;
+    metadata->root = root.pid();
+    this->metadataPid = metadata.pid();
 #ifndef NDEBUG
     // prevent print from being optimized out. It is otherwise never called, but nice for debugging
     if (getenv("oMEeHAobn4")) {
@@ -94,14 +94,14 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
 
 void BTree::trySplit(GuardX<AnyNode> node, GuardX<AnyNode> parent, std::span<uint8_t> key) {
     // create new root if necessary
-    if (parent.pid == metadataPid) {
+    if (parent.pid() == metadataPid) {
         MetaDataPage *metaData = reinterpret_cast<MetaDataPage *>(parent.ptr);
-        auto newRoot = AnyNode::makeRoot(node.pid);
-        metaData->root = newRoot.pid;
+        auto newRoot = AnyNode::makeRoot(node.pid());
+        metaData->root = newRoot.pid();
         parent = std::move(newRoot);
     }
     if (!node->splitNodeWithParent(parent.ptr, key)) {
-        auto parentPid = parent.pid;
+        auto parentPid = parent.pid();
         parent.release();
         node.release();
         // must split parent first to make space for separator, restart from root to do this
@@ -112,11 +112,11 @@ void BTree::trySplit(GuardX<AnyNode> node, GuardX<AnyNode> parent, std::span<uin
 void BTree::ensureSpace(PID innerNode, std::span<uint8_t> key) {
     GuardO<AnyNode> parent(metadataPid);
     GuardO<AnyNode> node(reinterpret_cast<MetaDataPage *>(parent.ptr)->root, parent);
-    while (node->isAnyInner() && (node.pid != innerNode)) {
+    while (node->isAnyInner() && (node.pid() != innerNode)) {
         parent = std::move(node);
         node = GuardO<AnyNode>(parent->lookupInner(key), parent);
     }
-    if (node.pid == innerNode) {
+    if (node.pid() == innerNode) {
         if (node->basic()->freeSpace() >= maxKvSize)
             return; // someone else did split concurrently
         GuardX<AnyNode> parentLocked(std::move(parent));

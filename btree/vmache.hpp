@@ -356,7 +356,6 @@ struct OLCRestartException {
 
 template<class T>
 struct GuardO {
-    PID pid;
     T *ptr;
     u64 version;
     static const u64 moved = ~0ull;
@@ -365,30 +364,32 @@ struct GuardO {
         return {};
     }
 
+    PID pid() {
+        return bm.toPID(ptr);
+    };
+
     // constructor
-    explicit GuardO(u64 pid) : pid(pid), ptr(reinterpret_cast<T *>(bm.toPtr(pid))) {
+    explicit GuardO(u64 pid) : ptr(reinterpret_cast<T *>(bm.toPtr(pid))) {
         init();
     }
 
-    explicit GuardO(PID pid, T *ptr, u64 version) : pid(pid), ptr(ptr), version(version) {}
+    explicit GuardO(T *ptr, u64 version) : ptr(ptr), version(version) {}
 
     template<class T2>
     GuardO(u64 pid, GuardO<T2> &parent) {
         parent.checkVersionAndRestart();
-        this->pid = pid;
         ptr = reinterpret_cast<T *>(bm.toPtr(pid));
         init();
     }
 
     GuardO(GuardO &&other) {
-        pid = other.pid;
         ptr = other.ptr;
         version = other.version;
     }
 
     void init() {
-        assert(pid != moved);
-        PageState &ps = bm.getPageState(pid);
+        assert(ptr);
+        PageState &ps = bm.getPageState(pid());
         for (u64 repeatCounter = 0;; repeatCounter++) {
             u64 v = ps.stateAndVersion.load();
             if (PageState::isNotMLE(v)) {
@@ -408,8 +409,8 @@ struct GuardO {
                     break;
                 case PageState::Evicted:
                     if (ps.tryLockX(v)) {
-                        bm.handleFault(pid);
-                        bm.unfixX(pid);
+                        bm.handleFault(pid());
+                        bm.unfixX(pid());
                     }
                     break;
                 default:
@@ -421,12 +422,10 @@ struct GuardO {
 
     // move assignment operator
     GuardO &operator=(GuardO &&other) {
-        if (pid != moved)
+        if (ptr)
             checkVersionAndRestart();
-        pid = other.pid;
         ptr = other.ptr;
         version = other.version;
-        other.pid = moved;
         other.ptr = nullptr;
         return *this;
     }
@@ -438,8 +437,8 @@ struct GuardO {
     GuardO(const GuardO &) = delete;
 
     void checkVersionAndRestart() {
-        if (pid != moved) {
-            PageState &ps = bm.getPageState(pid);
+        if (ptr) {
+            PageState &ps = bm.getPageState(pid());
             u64 stateAndVersion = ps.stateAndVersion.load();
             if (version == stateAndVersion) // fast path, nothing changed
                 return;
@@ -464,44 +463,44 @@ struct GuardO {
     }
 
     T *operator->() {
-        assert(pid != moved);
+        assert(ptr);
         return ptr;
     }
 
     void release_ignore() {
-        pid = moved;
         ptr = nullptr;
     }
 
     void release() {
         checkVersionAndRestart();
-        pid = moved;
         ptr = nullptr;
     }
 
 private:
-    GuardO() : pid(moved), ptr(nullptr) {}
+    GuardO() : ptr(nullptr) {}
 };
 
 extern __thread std::atomic<uint64_t> guard_x_count;
 
 template<class T>
 struct GuardX {
-    PID pid;
     T *ptr;
     static const u64 moved = ~0ull;
 
     // constructor
-    GuardX() : pid(moved), ptr(nullptr) {}
+    GuardX() : ptr(nullptr) {}
 
     // move constructor
-    GuardX(GuardX &&other) : pid(other.pid), ptr(other.ptr) {
-        other.pid = moved;
+    GuardX(GuardX &&other) : ptr(other.ptr) {
         other.ptr = nullptr;
     }
 
+    PID pid() {
+        return bm.toPID(ptr);
+    }
+
     // constructor
-    explicit GuardX(u64 pid) : pid(pid) {
+    explicit GuardX(u64 pid) {
         ptr = reinterpret_cast<T *>(bm.fixX(pid));
         reinterpret_cast<Page *>(ptr)->tagAndDirty.set_dirty(true);
         guard_x_count.fetch_add(1, std::memory_order::relaxed);
@@ -510,17 +509,15 @@ struct GuardX {
     explicit GuardX(GuardO<T> &&other) {
         assert(other.pid != moved);
         for (u64 repeatCounter = 0;; repeatCounter++) {
-            PageState &ps = bm.getPageState(other.pid);
+            PageState &ps = bm.getPageState(other.pid());
             u64 stateAndVersion = ps.stateAndVersion;
             if ((stateAndVersion << 8) != (other.version << 8))
                 throw OLCRestartException();
             u64 state = PageState::getState(stateAndVersion);
             if ((state == PageState::Unlocked) || (state == PageState::Marked)) {
                 if (ps.tryLockX(stateAndVersion)) {
-                    pid = other.pid;
                     ptr = other.ptr;
                     reinterpret_cast<Page *>(ptr)->tagAndDirty.set_dirty(true);
-                    other.pid = moved;
                     other.ptr = nullptr;
                     guard_x_count.fetch_add(1, std::memory_order::relaxed);
                     return;
@@ -531,8 +528,7 @@ struct GuardX {
     }
 
     GuardO<T> downgrade() &&{
-        GuardO<T> other{pid, ptr, bm.getPageState(pid).downgradeXtoO()};
-        pid = moved;
+        GuardO<T> other{ptr, bm.getPageState(pid()).downgradeXtoO()};
         ptr = nullptr;
         guard_x_count.fetch_sub(1, std::memory_order::relaxed);
         return other;
@@ -541,7 +537,6 @@ struct GuardX {
     static GuardX alloc() {
         GuardX r;
         r.ptr = reinterpret_cast<T *>(bm.allocPage());
-        r.pid = bm.toPID(r.ptr);
         guard_x_count.fetch_add(1, std::memory_order::relaxed);
         return r;
     }
@@ -551,13 +546,11 @@ struct GuardX {
 
     // move assignment operator
     GuardX &operator=(GuardX &&other) {
-        if (pid != moved) {
-            bm.unfixX(pid);
+        if (ptr) {
+            bm.unfixX(pid());
             guard_x_count.fetch_sub(1, std::memory_order::relaxed);
         }
-        pid = other.pid;
         ptr = other.ptr;
-        other.pid = moved;
         other.ptr = nullptr;
         return *this;
     }
@@ -567,9 +560,9 @@ struct GuardX {
 
     // destructor
     ~GuardX() {
-        if (pid != moved) {
+        if (ptr) {
             guard_x_count.fetch_sub(1, std::memory_order::relaxed);
-            bm.unfixX(pid);
+            bm.unfixX(pid());
         }
     }
 
@@ -579,78 +572,11 @@ struct GuardX {
     }
 
     void release() {
-        if (pid != moved) {
-            bm.unfixX(pid);
+        if (ptr) {
+            bm.unfixX(pid());
             guard_x_count.fetch_sub(1, std::memory_order::relaxed);
-            pid = moved;
+            ptr = nullptr;
         }
     }
 };
 
-template<class T>
-struct GuardS {
-    PID pid;
-    T *ptr;
-    static const u64 moved = ~0ull;
-
-    // constructor
-    explicit GuardS(u64 pid) : pid(pid) {
-        ptr = reinterpret_cast<T *>(bm.fixS(pid));
-    }
-
-    GuardS(GuardO<T> &&other) {
-        assert(other.pid != moved);
-        if (bm.getPageState(other.pid).tryLockS(other.version)) { // XXX: optimize?
-            pid = other.pid;
-            ptr = other.ptr;
-            other.pid = moved;
-            other.ptr = nullptr;
-        } else {
-            throw OLCRestartException();
-        }
-    }
-
-    GuardS(GuardS &&other) {
-        if (pid != moved)
-            bm.unfixS(pid);
-        pid = other.pid;
-        ptr = other.ptr;
-        other.pid = moved;
-        other.ptr = nullptr;
-    }
-
-    // assignment operator
-    GuardS &operator=(const GuardS &) = delete;
-
-    // move assignment operator
-    GuardS &operator=(GuardS &&other) {
-        if (pid != moved)
-            bm.unfixS(pid);
-        pid = other.pid;
-        ptr = other.ptr;
-        other.pid = moved;
-        other.ptr = nullptr;
-        return *this;
-    }
-
-    // copy constructor
-    GuardS(const GuardS &) = delete;
-
-    // destructor
-    ~GuardS() {
-        if (pid != moved)
-            bm.unfixS(pid);
-    }
-
-    T *operator->() {
-        assert(pid != moved);
-        return ptr;
-    }
-
-    void release() {
-        if (pid != moved) {
-            bm.unfixS(pid);
-            pid = moved;
-        }
-    }
-};

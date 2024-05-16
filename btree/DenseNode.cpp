@@ -234,7 +234,7 @@ void DenseNode::splitNode1(AnyNode *parent, std::span<uint8_t> key) {
 
     auto left = AnyNode::allocLeaf();
     memcpy(left.ptr, this, sizeof(DenseNode));
-    bool succ = parent->insertChild({full_boundary, fullKeyLen}, left.pid);
+    bool succ = parent->insertChild({full_boundary, fullKeyLen}, left.pid());
     assert(succ);
     auto denseLeft = left->dense();
     if (split_to_self) {
@@ -280,7 +280,7 @@ void DenseNode::splitNode2(AnyNode *parent, std::span<uint8_t> key) {
         }
     }
     memcpy(this, &right, pageSizeLeaf);
-    bool succ = parent->insertChild({splitKeyBuffer, leftDense->fullKeyLen}, left.pid);
+    bool succ = parent->insertChild({splitKeyBuffer, leftDense->fullKeyLen}, left.pid());
     validateDense2Count(right);
     validateDense2Count(*this);
     ASSUME(succ);

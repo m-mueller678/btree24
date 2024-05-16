@@ -378,7 +378,7 @@ void HashNode::splitNode(AnyNode *parent, unsigned sepSlot, std::span<std::uint8
     nodeLeft->init(getLowerFence(), sepKey, capacity, rangeOpCounter);
     HashNode right;
     right.init(sepKey, getUpperFence(), capacity, rangeOpCounter);
-    bool succ = parent->insertChild(sepKey, nodeLeftAlloc.pid);
+    bool succ = parent->insertChild(sepKey, nodeLeftAlloc.pid());
     assert(succ);
     nodeLeft->count = sepSlot + 1;
     nodeLeft->sortedCount = nodeLeft->count;
@@ -435,7 +435,7 @@ void HashNode::splitToBasic(AnyNode *parent, unsigned sepSlot, std::span<uint8_t
     BTreeNode &right = right_tmp.node;
     right.init(true, rangeOpCounter);
     right.setFences(sepKey, getUpperFence());
-    bool succ = parent->insertChild(sepKey, nodeLeft.pid);
+    bool succ = parent->insertChild(sepKey, nodeLeft.pid());
     assert(succ);
     copyKeyValueRangeToBasic(leftBasic, 0, 0, sepSlot + 1);
     copyKeyValueRangeToBasic(&right, 0, leftBasic->count, count - leftBasic->count);
