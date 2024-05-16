@@ -392,7 +392,7 @@ struct GuardO {
         PageState &ps = bm.getPageState(pid());
         for (u64 repeatCounter = 0;; repeatCounter++) {
             u64 v = ps.stateAndVersion.load();
-            if (PageState::isNotMLE(v)) {
+            if (PageState::isNotMLE(v)) [[likely]] {
                 version = v;
                 return;
             }
@@ -422,8 +422,7 @@ struct GuardO {
 
     // move assignment operator
     GuardO &operator=(GuardO &&other) {
-        if (ptr)
-            checkVersionAndRestart();
+        checkVersionAndRestart();
         ptr = other.ptr;
         version = other.version;
         other.ptr = nullptr;
@@ -437,10 +436,10 @@ struct GuardO {
     GuardO(const GuardO &) = delete;
 
     void checkVersionAndRestart() {
-        if (ptr) {
+        if (ptr) [[likely]] { // when this is moved from, the call is usually optimized out entirely
             PageState &ps = bm.getPageState(pid());
             u64 stateAndVersion = ps.stateAndVersion.load();
-            if (version == stateAndVersion) // fast path, nothing changed
+            if (version == stateAndVersion) [[likely]]// fast path, nothing changed
                 return;
             if ((stateAndVersion << 8) == (version << 8)) { // same version
                 u64 state = PageState::getState(stateAndVersion);
@@ -507,15 +506,16 @@ struct GuardX {
     }
 
     explicit GuardX(GuardO<T> &&other) {
-        assert(other.pid != moved);
+        assert(other.ptr);
         for (u64 repeatCounter = 0;; repeatCounter++) {
             PageState &ps = bm.getPageState(other.pid());
             u64 stateAndVersion = ps.stateAndVersion;
             if ((stateAndVersion << 8) != (other.version << 8))
+                [[unlikely]]
                 throw OLCRestartException();
             u64 state = PageState::getState(stateAndVersion);
-            if ((state == PageState::Unlocked) || (state == PageState::Marked)) {
-                if (ps.tryLockX(stateAndVersion)) {
+            if ((state == PageState::Unlocked) || (state == PageState::Marked)) [[likely]] {
+                if (ps.tryLockX(stateAndVersion)) [[likely]] {
                     ptr = other.ptr;
                     reinterpret_cast<Page *>(ptr)->tagAndDirty.set_dirty(true);
                     other.ptr = nullptr;
@@ -567,12 +567,12 @@ struct GuardX {
     }
 
     T *operator->() {
-        assert(pid != moved);
+        assert(ptr);
         return ptr;
     }
 
     void release() {
-        if (ptr) {
+        if (ptr) [[likely]] {
             bm.unfixX(pid());
             guard_x_count.fetch_sub(1, std::memory_order::relaxed);
             ptr = nullptr;
