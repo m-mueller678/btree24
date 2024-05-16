@@ -436,7 +436,7 @@ struct GuardO {
     GuardO(const GuardO &) = delete;
 
     void checkVersionAndRestart() {
-        if (ptr) [[likely]] { // when this is moved from, the call is usually optimized out entirely
+        if (ptr) {
             PageState &ps = bm.getPageState(pid());
             u64 stateAndVersion = ps.stateAndVersion.load();
             if (version == stateAndVersion) [[likely]]// fast path, nothing changed
@@ -511,11 +511,10 @@ struct GuardX {
             PageState &ps = bm.getPageState(other.pid());
             u64 stateAndVersion = ps.stateAndVersion;
             if ((stateAndVersion << 8) != (other.version << 8))
-                [[unlikely]]
                 throw OLCRestartException();
             u64 state = PageState::getState(stateAndVersion);
-            if ((state == PageState::Unlocked) || (state == PageState::Marked)) [[likely]] {
-                if (ps.tryLockX(stateAndVersion)) [[likely]] {
+            if ((state == PageState::Unlocked) || (state == PageState::Marked)) {
+                if (ps.tryLockX(stateAndVersion)) {
                     ptr = other.ptr;
                     reinterpret_cast<Page *>(ptr)->tagAndDirty.set_dirty(true);
                     other.ptr = nullptr;
@@ -572,7 +571,7 @@ struct GuardX {
     }
 
     void release() {
-        if (ptr) [[likely]] {
+        if (ptr) {
             bm.unfixX(pid());
             guard_x_count.fetch_sub(1, std::memory_order::relaxed);
             ptr = nullptr;
