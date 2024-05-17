@@ -294,7 +294,6 @@ KeyError DenseNode::keyToIndex(std::span<uint8_t> key) {
                fullKeyLen - sizeof(NumericPart) - prefixLength) != 0)
         return KeyError::NotNumericRange;
     NumericPart numericPart = getNumericPart(key, fullKeyLen);
-    assert(numericPart >= arrayStart);
     NumericPart index = numericPart - arrayStart;
     if (index < slotCount) {
         return static_cast<KeyError>(index);
@@ -629,7 +628,8 @@ bool DenseNode::try_densify(BTreeNode *basicNode) {
 }
 
 bool DenseNode::isSlotPresent(unsigned i) {
-    assert(i < slotCount);
+    if (i / maskBitsPerWord >= sizeof(mask) / sizeof(mask[0]))
+        throw OLCRestartException();
     return (mask[i / maskBitsPerWord] >> (i % maskBitsPerWord) & 1) != 0;
 }
 
