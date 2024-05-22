@@ -27,7 +27,8 @@ BufferManager::BufferManager() : virtSize(envOr("VIRTGB", 16) * gb), physSize(en
         std::cerr << "cannot open BLOCK device '" << path << "'" << std::endl;
         exit(EXIT_FAILURE);
     }
-    u64 virtAllocSize = virtSize + (1 << 16); // we allocate 64KB extra to prevent segfaults during optimistic reads
+    u64 virtAllocSize = virtSize + (1
+            << 17); // we allocate 128KB (= max len + max offset) extra to prevent segfaults during optimistic reads
 
     useExmap = envOr("EXMAP", 0);
     if (useExmap) {
