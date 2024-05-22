@@ -579,3 +579,78 @@ struct GuardX {
     }
 };
 
+template<class T>
+struct AllocGuard : public GuardX<T> {
+    template<typename ...Params>
+    AllocGuard(Params &&... params) {
+        GuardX<T>::ptr = reinterpret_cast<T *>(bm.allocPage());
+        new(GuardX<T>::ptr) T(std::forward<Params>(params)...);
+    }
+};
+
+
+template<class T>
+struct GuardS {
+    T *ptr;
+    static const u64 moved = ~0ull;
+
+    // constructor
+    explicit GuardS(u64 pid) {
+        ptr = reinterpret_cast<T *>(bm.fixS(pid));
+    }
+
+    GuardS(GuardO<T> &&other) {
+        assert(other.ptr);
+        if (bm.getPageState(other.pid()).tryLockS(other.version)) { // XXX: optimize?
+            ptr = other.ptr;
+            other.ptr = nullptr;
+        } else {
+            throw OLCRestartException();
+        }
+    }
+
+    GuardS(GuardS &&other) {
+        if (ptr)
+            bm.unfixS(pid());
+        ptr = other.ptr;
+        other.pid = moved;
+        other.ptr = nullptr;
+    }
+
+    PID pid() {
+        return bm.toPID(ptr);
+    }
+
+    // assignment operator
+    GuardS &operator=(const GuardS &) = delete;
+
+    // move assignment operator
+    GuardS &operator=(GuardS &&other) {
+        if (ptr)
+            bm.unfixS(pid());
+        ptr = other.ptr;
+        other.ptr = nullptr;
+        return *this;
+    }
+
+    // copy constructor
+    GuardS(const GuardS &) = delete;
+
+    // destructor
+    ~GuardS() {
+        if (ptr)
+            bm.unfixS(pid());
+    }
+
+    T *operator->() {
+        assert(ptr);
+        return ptr;
+    }
+
+    void release() {
+        if (ptr) {
+            bm.unfixS(pid());
+            ptr = nullptr;
+        }
+    }
+};

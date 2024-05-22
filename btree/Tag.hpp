@@ -5,6 +5,7 @@
 #include <random>
 #include "config.hpp"
 
+
 enum class Tag : uint8_t {
     Inner = 1,
     Leaf = 2,
@@ -70,7 +71,7 @@ struct RangeOpCounter {
     }
 };
 
-
+#ifdef USE_STRUCTURE_BTREE
 struct TagAndDirty {
 private:
     uint8_t x;
@@ -94,6 +95,30 @@ public:
 
     bool dirty() { return (x & 128) != 0; }
 };
+#else
+
+struct TagAndDirty {
+private:
+    bool is_dirty;
+public:
+    RangeOpCounter rangeOpCounter;
+
+    TagAndDirty() {}
+
+    void init(Tag t, RangeOpCounter roc) {
+        abort();
+    }
+
+    Tag tag() { abort(); }
+
+    void set_tag(Tag t) { abort(); }
+
+    void set_dirty(bool d) { is_dirty = d; }
+
+    bool dirty() { return is_dirty; }
+};
+
+#endif
 
 
 #endif //BTREE24_TAG_HPP

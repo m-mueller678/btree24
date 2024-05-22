@@ -8,16 +8,23 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
 
-file(GLOB CONFIG_HEADERS "btree/configs/*.hpp")
-add_executable(btree24 btree/main.cpp
+option(check_tree_ops "set CHECK_TREE_OPS" OFF)
+option(nosync "nosync" OFF)
+option(asan "enable asan" OFF)
+option(CONFIG_VARIANT "Choose a value for CONFIG_VARIANT.hpp")
+
+set(SOURCES btree/main.cpp
         btree/PerfEvent.hpp
         btree/DataStructureWrapper.cpp
         btree/DataStructureWrapper.hpp
-        btree/BTree.cpp
-        btree/BTree.hpp
+        btree/vmache.hpp
         btree/vmache.cpp
-        btree/Tag.cpp
         btree/Tag.hpp
+        btree/nodes.hpp
+        btree/common.hpp
+        btree/common.cpp
+        btree/BTree.hpp
+        btree/BTree.cpp
         btree/HashNode.cpp
         btree/HashNode.hpp
         btree/BTreeNode.cpp
@@ -26,13 +33,21 @@ add_executable(btree24 btree/main.cpp
         btree/AnyNode.hpp
         btree/DenseNode.cpp
         btree/DenseNode.hpp
-        btree/nodes.hpp
         btree/SeparatorInfo.cpp
         btree/SeparatorInfo.hpp
-        btree/common.hpp
-        btree/common.cpp
+        btree/Tag.cpp
+        btree/vmcache_btree.hpp
+        btree/vmcache_btree.cpp
         ${CONFIG_HEADERS}
 )
+
+if (CONFIG_VARIANT STREQUAL "vmcache")
+else ()
+endif ()
+
+
+file(GLOB CONFIG_HEADERS "btree/configs/*.hpp")
+add_executable(btree24 ${SOURCES})
 
 add_subdirectory(zipfc)
 
@@ -45,18 +60,14 @@ if (NOT LIBAIO_LIBRARY)
 endif ()
 target_link_libraries(btree24 PRIVATE ${LIBAIO_LIBRARY})
 
-
-option(check_tree_ops "set CHECK_TREE_OPS" OFF)
 IF (check_tree_ops)
     target_compile_definitions(btree24 PRIVATE CHECK_TREE_OPS=1)
 ENDIF (check_tree_ops)
 
-option(nosync "nosync" OFF)
 IF (nosync)
     target_compile_definitions(btree24 PRIVATE NOSYNC=1)
 ENDIF (nosync)
 
-option(asan "enable asan" OFF)
 IF (asan)
     add_compile_options(-fsanitize=address)
     add_link_options(-fsanitize=address)
@@ -65,8 +76,6 @@ ENDIF (asan)
 if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(FATAL_ERROR "You probably want to use clang to compile this, as gcc does not support some SIMD stuff we use in HashLeaf")
 endif ()
-
-option(CONFIG_VARIANT "Choose a value for CONFIG_VARIANT.hpp")
 
 if (CONFIG_VARIANT)
     add_definitions(-DBTREE_CMAKE_CONFIG_INCLUDE=\"configs/${CONFIG_VARIANT}.hpp\")

@@ -3,6 +3,7 @@
 
 #include "config.hpp"
 #include "BTree.hpp"
+#include "vmcache_btree.hpp"
 #include <map>
 
 struct DataStructureWrapper {
@@ -13,6 +14,8 @@ struct DataStructureWrapper {
 #endif
 #if defined(USE_STRUCTURE_BTREE)
     BTree impl;
+#elif defined(USE_STRUCTURE_VMCACHE)
+    VmcBTree impl;
 #elif defined(USE_STRUCTURE_ART)
     ArtBTreeAdapter impl;
 #elif defined(USE_STRUCTURE_HOT)
