@@ -99,11 +99,13 @@ void VmcBTree::trySplit(GuardX<VmcBTreeNode> &&node, GuardX<VmcBTreeNode> &&pare
 
     // must split parent to make space for separator, restart from root to do this
     node.release();
+    VmcBTreeNode *parent_ptr = parent.ptr;
     parent.release();
-    ensureSpace(parent.ptr, {sepKey, sepInfo.len}, sizeof(PID));
+    ensureSpace(parent_ptr, {sepKey, sepInfo.len}, sizeof(PID));
 }
 
 void VmcBTree::ensureSpace(VmcBTreeNode *toSplit, span<u8> key, unsigned payloadLen) {
+    assert(toSplit);
     for (u64 repeatCounter = 0;; repeatCounter++) {
         try {
             GuardO<VmcBTreeNode> parent(metadataPageId);
