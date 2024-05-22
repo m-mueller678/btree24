@@ -51,8 +51,8 @@ struct RangeOpCounter {
         }
     }
 
-    static constexpr uint32_t RANGE_THRESHOLD = (std::minstd_rand::max() + 1) * 0.05;
-    static constexpr uint32_t POINT_THRESHOLD = (std::minstd_rand::max() + 1) * 0.0167;
+    static constexpr uint32_t RANGE_THRESHOLD = (std::minstd_rand::max() + 1) * 0.15;
+    static constexpr uint32_t POINT_THRESHOLD = (std::minstd_rand::max() + 1) * 0.05;
 
     void range_op();
 
