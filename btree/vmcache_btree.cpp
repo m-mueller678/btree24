@@ -406,17 +406,13 @@ void VmcBTreeNode::insertInPage(std::span<u8> key, std::span<u8> payload) {
     bool found;
     unsigned slotId = lowerBound(key, found);
     if (found) {
-        if (payload.size() != slot[slotId].payloadLen) {
-            std::cout << "vmcache update unimplemented" << std::endl;
-            abort();
-        }
-        memcpy(getPayload(slotId).data(), payload.data(), payload.size());
+        spaceUsed -= slot[slotId].payloadLen + slot[slotId].keyLen;
     } else {
         memmove(slot + slotId + 1, slot + slotId, sizeof(Slot) * (count - slotId));
-        storeKeyValue(slotId, key, payload);
         count++;
-        updateHint(slotId);
     }
+    storeKeyValue(slotId, key, payload);
+    updateHint(slotId);
 }
 
 bool VmcBTreeNode::removeSlot(unsigned int slotId) {
