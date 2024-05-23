@@ -204,8 +204,8 @@ static void runMixed(BTreeCppPerfEvent e,
     std::atomic_bool keepWorking = true;
     std::atomic<uint64_t> ops_performed = 0;
 
-    const uint8_t insertThreshold = insertShare * 256 / 8;
-    const uint8_t scanThreshold = (insertShare + rangeShare) * 256 / 8;
+    const unsigned insertThreshold = insertShare * 256 / 8;
+    const unsigned scanThreshold = (insertShare + rangeShare) * 256 / 8;
 
     DataStructureWrapper t(isDataInt(e));
 
