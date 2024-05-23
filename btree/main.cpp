@@ -276,7 +276,9 @@ static void runMixed(BTreeCppPerfEvent e,
     {
         barrier.arrive_and_wait();
         {
-            e.setParam("op", "mixed161");
+            std::stringstream op_name;
+            op_name << "mixed" << insertShare << lookupShare << rangeShare;
+            e.setParam("op", op_name.str());
             BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
             barrier.arrive_and_wait();
             sleep(workDuration);
