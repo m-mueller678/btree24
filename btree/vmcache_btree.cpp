@@ -406,14 +406,10 @@ void VmcBTreeNode::insertInPage(std::span<u8> key, std::span<u8> payload) {
     bool found;
     unsigned slotId = lowerBound(key, found);
     if (found) {
-        // this only happens in tests, not in the benchmark
-        static std::atomic<bool> warn_printed = false;
-        if (!warn_printed.load(std::memory_order_relaxed)) {
-            std::cout << "vmcache insert hack" << std::endl;
-            warn_printed.store(true, std::memory_order::relaxed);
-        }
-        if (payload.size() != slot[slotId].payloadLen)
+        if (payload.size() != slot[slotId].payloadLen) {
+            std::cout << "vmcache update unimplemented" << std::endl;
             abort();
+        }
         memcpy(getPayload(slotId).data(), payload.data(), payload.size());
     } else {
         memmove(slot + slotId + 1, slot + slotId, sizeof(Slot) * (count - slotId));
