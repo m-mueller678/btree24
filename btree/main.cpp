@@ -187,8 +187,15 @@ static void runMixed(BTreeCppPerfEvent e,
                      unsigned workDuration,
                      double zipfParameter,
                      unsigned maxScanLength,
-                     unsigned threadCount
+                     unsigned threadCount,
+                     unsigned insertShare,
+                     unsigned lookupShare,
+                     unsigned rangeShare
 ) {
+    if (insertShare + lookupShare + rangeShare != 8) {
+        std::cerr << "workload mix ddoes not add up to 8" << std::endl;
+        abort();
+    }
     constexpr unsigned index_samples = 1 << 25;
     uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
     uint8_t *payloadPtr = makePayload(payloadSize);
@@ -196,6 +203,9 @@ static void runMixed(BTreeCppPerfEvent e,
     unsigned preInsertCount = keyCount - keyCount / 10;
     std::atomic_bool keepWorking = true;
     std::atomic<uint64_t> ops_performed = 0;
+
+    const uint8_t insertThreshold = insertShare * 256 / 8;
+    const uint8_t scanThreshold = (insertShare + rangeShare) * 256 / 8;
 
     DataStructureWrapper t(isDataInt(e));
 
@@ -226,9 +236,9 @@ static void runMixed(BTreeCppPerfEvent e,
                 }
                 unsigned keyIndex = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
                 uint8_t op_type = ops[local_ops_performed % ops.size()];
-                if (op_type < 32) {
+                if (op_type < insertThreshold) {
                     t.insert(data[keyIndex].span(), payload);
-                } else if (op_type < 64) {
+                } else if (op_type < scanThreshold) {
                     //scan
                     unsigned scanLength = range_len_distribution(local_rng);
                     while (keepWorking.load(std::memory_order::relaxed)) {
@@ -555,30 +565,35 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    switch (ycsb_variant) {
-        case 401: {
-            abort();
+    if (ycsb_variant >= 6000 && ycsb_variant < 7000) {
+
+        runMixed(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount,
+                 ycsb_variant / 100 % 10, ycsb_variant / 10 % 10, ycsb_variant % 10);
+    } else
+        switch (ycsb_variant) {
+            case 401: {
+                abort();
+            }
+            case 402: {
+                runLargeInsert(threadCount, duration);
+                break;
+            }
+            case 501: {
+                abort();
+            }
+            case 6: {
+                runMulti(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount);
+                break;
+            }
+            case 601: {
+                runMixed(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount, 1, 6, 1);
+                break;
+            }
+            default: {
+                std::cerr << "bad ycsb variant" << std::endl;
+                abort();
+            }
         }
-        case 402: {
-            runLargeInsert(threadCount, duration);
-            break;
-        }
-        case 501: {
-            abort();
-        }
-        case 6: {
-            runMulti(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount);
-            break;
-        }
-        case 601: {
-            runMixed(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount);
-            break;
-        }
-        default: {
-            std::cerr << "bad ycsb variant" << std::endl;
-            abort();
-        }
-    }
 
     return 0;
 }
