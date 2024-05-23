@@ -412,7 +412,9 @@ void VmcBTreeNode::insertInPage(std::span<u8> key, std::span<u8> payload) {
         count++;
     }
     storeKeyValue(slotId, key, payload);
-    updateHint(slotId);
+    if (!found) {
+        updateHint(slotId);
+    }
 }
 
 bool VmcBTreeNode::removeSlot(unsigned int slotId) {
