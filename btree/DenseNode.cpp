@@ -688,6 +688,9 @@ bool DenseNode::requestSpaceFor(unsigned int payloadLen) {
             }
         }
         memcpy(ptr() + bufferOffset, buffer + bufferOffset, fencesOffset() - bufferOffset);
+        dataOffset = bufferOffset;
+        assert(dataOffset + spaceUsed == fencesOffset());
+        assert(slotEndOffset() + payloadLen + 2 <= dataOffset);
         return true;
     }
     return false;
