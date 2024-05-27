@@ -85,15 +85,10 @@ static void runMulti(BTreeCppPerfEvent e,
             unsigned threadIndexOffset = index_samples / threadCount * tid;
             unsigned local_ops_performed = 0;
             barrier.arrive_and_wait();
-            for (uint64_t i = rangeStart(0, preInsertCount, threadCount, tid);
-                 i < rangeStart(0, preInsertCount, threadCount, tid + 1); i++) {
-                t.insert(data[i].span(), payload);
-            }
-            barrier.arrive_and_wait();
             barrier.arrive_and_wait();
             //insert
-            for (uint64_t i = rangeStart(preInsertCount, keyCount, threadCount, tid);
-                 i < rangeStart(preInsertCount, keyCount, threadCount, tid + 1); i++) {
+            for (uint64_t i = rangeStart(0, keyCount, threadCount, tid);
+                 i < rangeStart(0, keyCount, threadCount, tid + 1); i++) {
                 t.insert(data[i].span(), payload);
             }
             barrier.arrive_and_wait();
@@ -136,12 +131,11 @@ static void runMulti(BTreeCppPerfEvent e,
         }, i);
     }
     {
-        barrier.arrive_and_wait();
         //pre insert
         barrier.arrive_and_wait();
         {
-            e.setParam("op", "insert90");
-            BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
+            e.setParam("op", "insert0");
+            BTreeCppPerfEventBlock b(e, t, keyCount);
             barrier.arrive_and_wait();
             // work
             barrier.arrive_and_wait();
