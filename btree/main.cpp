@@ -51,8 +51,11 @@ static bool keySizeAcceptable(unsigned maxPayload, vector<string> &data) {
     return true;
 }
 
-static unsigned rangeStart(unsigned start, unsigned end, unsigned nthread, unsigned tid) {
-    return start + (end - start) * tid / nthread;
+static unsigned rangeStart(uint64_t start, uint64_t end, uint64_t nthread, uint64_t tid) {
+    if (tid == nthread)
+        return end;
+    else
+        return start + (end - start) * tid / nthread;
 }
 
 static void runMulti(BTreeCppPerfEvent e,
