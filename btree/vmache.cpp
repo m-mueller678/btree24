@@ -1,5 +1,6 @@
 #include "vmache.hpp"
 
+static std::mutex AIO_ERROR_LOCK;
 __thread uint16_t workerThreadId = ~0;
 __thread int32_t tpcchistorycounter = 0;
 
@@ -167,7 +168,14 @@ void BufferManager::readPage(PID pid) {
         abort();
     } else {
         int ret = pread(blockfd, virtMem + pid, pageSize, pid * pageSize);
-        assert(ret == pageSize);
+        if (ret != pageSize) {
+            AIO_ERROR_LOCK.lock();
+            std::cout << "error reading page " << pid << ":" << ret;
+            if (ret < 0)
+                std::cout << ". " << strerror(-ret);
+            std::cout << std::endl;
+            abort();
+        }
         readCount++;
     }
 }
@@ -248,4 +256,29 @@ void PageState::init() { stateAndVersion.store(sameVersion(0, Unlocked), std::me
 ResidentPageSet::ResidentPageSet(u64 maxCount) : count(next_pow2(maxCount * 1.5)), mask(count - 1), clockPos(0) {
     ht = (Entry *) allocHuge(count * sizeof(Entry));
     memset((void *) ht, 0xFF, count * sizeof(Entry));
+}
+
+void LibaioInterface::writePages(const std::vector<PID> &pages) {
+    assert(pages.size() < maxIOs);
+    for (u64 i = 0; i < pages.size(); i++) {
+        PID pid = pages[i];
+        virtMem[pid].tagAndDirty.set_dirty(false);
+        cbPtr[i] = &cb[i];
+        io_prep_pwrite(cb + i, blockfd, &virtMem[pid], pageSize, pageSize * pid);
+    }
+    int cnt = io_submit(ctx, pages.size(), cbPtr);
+    assert(cnt == pages.size());
+    cnt = io_getevents(ctx, pages.size(), pages.size(), events, nullptr);
+    assert(cnt == pages.size());
+    for (int i = 0; i < cnt; ++i) {
+        signed long ret = events[i].res;
+        if (ret != pageSize) {
+            AIO_ERROR_LOCK.lock();
+            std::cout << "error writing page :" << ret;
+            if (ret < 0)
+                std::cout << ". " << strerror(-ret);
+            std::cout << std::endl;
+            abort();
+        }
+    }
 }

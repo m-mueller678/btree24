@@ -268,19 +268,7 @@ struct LibaioInterface {
         }
     }
 
-    void writePages(const std::vector<PID> &pages) {
-        assert(pages.size() < maxIOs);
-        for (u64 i = 0; i < pages.size(); i++) {
-            PID pid = pages[i];
-            virtMem[pid].tagAndDirty.set_dirty(false);
-            cbPtr[i] = &cb[i];
-            io_prep_pwrite(cb + i, blockfd, &virtMem[pid], pageSize, pageSize * pid);
-        }
-        int cnt = io_submit(ctx, pages.size(), cbPtr);
-        assert(cnt == pages.size());
-        cnt = io_getevents(ctx, pages.size(), pages.size(), events, nullptr);
-        assert(cnt == pages.size());
-    }
+    void writePages(const std::vector<PID> &pages);
 };
 
 struct BufferManager {

@@ -97,8 +97,10 @@ static void runMulti(BTreeCppPerfEvent e,
             while (keepWorking.load(std::memory_order::relaxed)) {
                 unsigned keyIndex = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
                 assert(keyIndex < keyCount);
-                if (!t.lookup(data[keyIndex].span()))
+                if (!t.lookup(data[keyIndex].span())) {
+                    std::cout << "missing key" << std::endl;
                     abort();
+                }
                 local_ops_performed += 1;
             }
             ops_performed += local_ops_performed;
