@@ -135,7 +135,7 @@ fn load_file_keys(count: u32, rng: &mut MainRng, path: &str) -> Vec<Key> {
 
 fn gen_int_keys(count: u32, int_density: f64, rng: &mut MainRng) -> Vec<Key> {
     let gen_count = ((count as f64) / int_density).round();
-    assert!(gen_count < 1.0e9);
+    assert!(gen_count < 4.0e9);
     let mut generated: Vec<u32> = (0..gen_count as u32).into_par_iter().collect();
     generated.par_shuffle(rng);
     generated.truncate(count as usize);
