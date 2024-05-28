@@ -260,7 +260,7 @@ static void nodeCountVisit(AnyNode &node, std::array<uint32_t, TAG_END + 1> &cou
     switch (node.tag()) {
         case Tag::Inner:
             for (int i = 0; i <= node.basic()->count; ++i) {
-                GuardO<AnyNode> child((i == node.basic()->count) ? node.basic()->upper : node.basic()->getChild(i));
+                GuardX<AnyNode> child((i == node.basic()->count) ? node.basic()->upper : node.basic()->getChild(i));
                 nodeCountVisit(*child.ptr, counts);
             }
             break;
@@ -278,12 +278,9 @@ static void nodeCountVisit(AnyNode &node, std::array<uint32_t, TAG_END + 1> &cou
 }
 
 void BTree::nodeCount(std::array<uint32_t, TAG_END + 1> &counts) {
-    try {
-        GuardO<MetaDataPage> meta{metadataPid};
-        GuardO<AnyNode> node(meta->root, meta);
-        nodeCountVisit(*node.ptr, counts);
-    } catch (OLCRestartException) {
-        abort();
-    };
+    // TODO node count causes issues with paging
+    GuardX<MetaDataPage> meta{metadataPid};
+    GuardX<AnyNode> node(meta->root);
+    nodeCountVisit(*node.ptr, counts);
 }
 

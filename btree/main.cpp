@@ -78,6 +78,7 @@ static void runMulti(BTreeCppPerfEvent e,
 
     DataStructureWrapper t(isDataInt(e));
 
+    setVmcacheWorkerThreadId(threadCount);
     std::vector<std::thread> threads;
     std::barrier barrier{threadCount + 1};
     for (int i = 0; i < threadCount; ++i) {
@@ -208,8 +209,10 @@ static void runMixed(BTreeCppPerfEvent e,
 
     DataStructureWrapper t(isDataInt(e));
 
+    setVmcacheWorkerThreadId(threadCount);
     std::vector<std::thread> threads;
     std::barrier barrier{threadCount + 1};
+    // for collecting node counts
     for (int i = 0; i < threadCount; ++i) {
         // Start a thread and execute threadFunction with the thread ID as argument
         threads.emplace_back([&](unsigned tid) {
