@@ -13,7 +13,7 @@ option(nosync "nosync" OFF)
 option(asan "enable asan" OFF)
 option(CONFIG_VARIANT "Choose a value for CONFIG_VARIANT.hpp")
 
-set(SOURCES btree/main.cpp
+add_executable(btree24 btree/main.cpp
         btree/PerfEvent.hpp
         btree/DataStructureWrapper.cpp
         btree/DataStructureWrapper.hpp
@@ -38,16 +38,18 @@ set(SOURCES btree/main.cpp
         btree/Tag.cpp
         btree/vmcache_btree.hpp
         btree/vmcache_btree.cpp
+        btree/TlxWrapper.hpp
+        btree/TlxWrapper.cpp
         ${CONFIG_HEADERS}
 )
 
-if (CONFIG_VARIANT STREQUAL "vmcache")
+if (CONFIG_VARIANT STREQUAL "tlx")
+    add_definitions(-DDEBUG=0)
+    target_include_directories(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/tlx-plain ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/btree_tests/ParallelTools)
 else ()
 endif ()
 
-
 file(GLOB CONFIG_HEADERS "btree/configs/*.hpp")
-add_executable(btree24 ${SOURCES})
 
 add_subdirectory(zipfc)
 

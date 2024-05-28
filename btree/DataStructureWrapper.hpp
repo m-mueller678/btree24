@@ -4,6 +4,7 @@
 #include "config.hpp"
 #include "BTree.hpp"
 #include "vmcache_btree.hpp"
+#include "TlxWrapper.hpp"
 #include <map>
 
 struct DataStructureWrapper {
