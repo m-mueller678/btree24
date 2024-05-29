@@ -276,7 +276,7 @@ private:
             return (level == 0);
         }
 
-        virtual short get_slotuse () = 0;
+        virtual short get_slotuse() const = 0;
     };
 
     //! Extended structure of a inner node in-memory. Contains only keys and no
@@ -307,7 +307,7 @@ private:
             return slotkey[s];
         }
 
-        short get_slotuse() {
+        short get_slotuse() const {
             return slotuse;
         }
 
@@ -361,26 +361,26 @@ private:
             return slotdata.get_key_at_sorted_index(s);
         }
 #if !MANUAL_GET_NUM_ELTS
-        short get_slotuse() {
+        short get_slotuse()const {
             return slotdata.get_num_elements();
         }
 
         //! True if the node's slots are full.
         bool is_full() const {
-	    // printf("is full: num elts %lu, leaf_slotmax %lu, slots %lu\n", slotdata.get_num_elements(), leaf_slotmax, SLOTS);
+        // printf("is full: num elts %lu, leaf_slotmax %lu, slots %lu\n", slotdata.get_num_elements(), leaf_slotmax, SLOTS);
             return slotdata.get_num_elements() == leaf_slotmax;
         }
 
         //! True if few used entries, less than half full.
         bool is_few() const {
-					return slotdata.get_num_elements() <= leaf_slotmin;
-          //return slotdata.is_few();  
-					// return (node::slotuse <= leaf_slotmin);
+                    return slotdata.get_num_elements() <= leaf_slotmin;
+          //return slotdata.is_few();
+                    // return (node::slotuse <= leaf_slotmin);
         }
 
         //! True if node has too few entries.
         bool is_underflow() const {
-					return slotdata.get_num_elements() < leaf_slotmin;
+                    return slotdata.get_num_elements() < leaf_slotmin;
         }
 
         bool soon_underflow() const {
@@ -389,7 +389,7 @@ private:
 #else
         unsigned short manual_slotuse;
 
-        short get_slotuse() {
+        short get_slotuse() const {
             return manual_slotuse;
         }
 
@@ -1541,9 +1541,9 @@ private:
     unsigned short find_lower(const node_type* n, const key_type& key) const {
         if (sizeof(*n) > traits::binsearch_threshold)
         {
-            if (n->slotuse == 0) return 0;
+            if (n->get_slotuse() == 0) return 0;
 
-            unsigned short lo = 0, hi = n->slotuse;
+            unsigned short lo = 0, hi = n->get_slotuse();
 
             while (lo < hi)
             {
@@ -1563,11 +1563,7 @@ private:
             // verify result using simple linear search
             if (self_verify)
             {
-                unsigned short i = 0;
-                while (i < n->slotuse && key_less(n->key(i), key)) ++i;
-
-                TLX_BTREE_PRINT("BTree::find_lower: testfind: " << i);
-                TLX_BTREE_ASSERT(i == lo);
+                abort();
             }
 
             return lo;
@@ -1575,7 +1571,7 @@ private:
         else // for nodes <= binsearch_threshold do linear search.
         {
             unsigned short lo = 0;
-            while (lo < n->slotuse && key_less(n->key(lo), key)) ++lo;
+            while (lo < n->get_slotuse() && key_less(n->key(lo), key)) ++lo;
             return lo;
         }
     }
@@ -2053,7 +2049,7 @@ public:
         LeafNode* leaf = static_cast<LeafNode*>(n);
 
         unsigned short slot = find_lower(leaf, key);
-        return (slot < leaf->slotuse && key_equal(key, leaf->key(slot)))
+        return (slot < leaf->get_slotuse() && key_equal(key, leaf->key(slot)))
                ? iterator(leaf, slot) : end();
     }
 

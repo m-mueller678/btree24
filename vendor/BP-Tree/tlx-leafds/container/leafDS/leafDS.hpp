@@ -19,13 +19,10 @@
 #include <set>
 
 #if DEBUG==1
+// bp-tree would usually print something here, but TlxKey cannot be printed, so we just do nothing
 #define ASSERT(PREDICATE, ...)                                                 \
   do {                                                                         \
     if (!(PREDICATE)) {                                                        \
-      fprintf(stderr,                                                          \
-              "%s:%d (%s) Assertion " #PREDICATE " failed: ", __FILE__,        \
-              __LINE__, __PRETTY_FUNCTION__);                                  \
-      fprintf(stderr, __VA_ARGS__);                                            \
       abort();                                                                 \
     }                                                                          \
   } while (0)
@@ -154,7 +151,7 @@ class LeafDS {
 #endif
 
 private:
-	static constexpr key_type NULL_VAL = {};
+    static const key_type NULL_VAL;
 
 	static constexpr size_t num_blocks = header_size;
 	static constexpr size_t N = log_size + header_size + block_size * num_blocks;
@@ -907,8 +904,7 @@ void LeafDS<log_size, header_size, block_size, key_type, ts...>::global_redistri
 	for (size_t i = 1; i < buffer.size(); i++) {
 		assert(num_deletes_in_log == 0);
 		if (!has(std::get<0>(buffer[i]))) {
-			printf("Missing key %lu\n", std::get<0>(buffer[i]));
-			print();
+            abort();
 		}
 		assert(has(std::get<0>(buffer[i])));
 		ASSERT(std::get<0>(buffer[i]) > std::get<0>(buffer[i-1]), "buffer[%lu] = %lu, buffer[%lu] = %lu\n", i-1, std::get<0>(buffer[i-1]), i, std::get<0>(buffer[i]));
@@ -2116,50 +2112,13 @@ bool LeafDS<log_size, header_size, block_size, key_type, Ts...>::has_with_print(
 // print the range [start, end)
 template <size_t log_size, size_t header_size, size_t block_size, typename key_type, typename... Ts>
 void LeafDS<log_size, header_size, block_size, key_type, Ts...>::print_range(size_t start, size_t end) const {
-	SOA_type::map_range_with_index_static(
-			(void *)array.data(), N,
-			[](size_t index, key_type key, auto... args) {
-				if (key != NULL_VAL) {
-					if constexpr (binary) {
-						std::cout << key << ", ";
-					} else {
-						std::cout << "((_" << index << "_)" << key << ", ";
-						((std::cout << ", " << args), ...);
-						std::cout << "), ";
-					}
-				} else {
-					std::cout << "_" << index << "_,";
-				}
-			},
-			start, end);
-	printf("\n");
+    abort();
 }
 
 // print the entire thing
 template <size_t log_size, size_t header_size, size_t block_size, typename key_type, typename... Ts>
 void LeafDS<log_size, header_size, block_size, key_type, Ts...>::print() const {
-  auto num_elts = count_up_elts();
-  printf("total num elts via count_up_elts %lu\n", num_elts);
-  printf("total num elts %lu\n", num_elts_total);
-  printf("num inserts in log = %lu\n", num_inserts_in_log);
-  printf("num deletes in log = %lu\n", num_deletes_in_log);
-  SOA_type::print_type_details();
-
-	if (num_elts == 0) {
-    printf("the ds is empty\n");
-  }
-
-	printf("\nlog: \n");
-	print_range(0, log_size);
-
-	printf("\nheaders:\n");
-	print_range(header_start, blocks_start);
-
-	for (uint32_t i = blocks_start; i < N; i += block_size) {
-		printf("\nblock %lu (header = %lu)\n", (i - blocks_start) / block_size, blind_read_key(header_start + (i - blocks_start) / block_size));
-		print_range(i, i + block_size);
-	}
-	printf("\n");
+    abort();
 }
 
 // apply the function F to the entire data structure
@@ -2619,12 +2578,12 @@ void LeafDS<log_size, header_size, block_size, key_type, Ts...>::unsorted_range(
 	}
 }
 
-void printBits(size_t const size, void const * const ptr)
+inline void printBits(size_t const size, void const *const ptr)
 {
     unsigned char *b = (unsigned char*) ptr;
     unsigned char byte;
     int i, j;
-    
+
     for (i = size-1; i >= 0; i--) {
         for (j = 7; j >= 0; j--) {
             byte = (b[i] >> j) & 1;

@@ -43,10 +43,21 @@ add_executable(btree24 btree/main.cpp
         ${CONFIG_HEADERS}
 )
 
-if (CONFIG_VARIANT STREQUAL "tlx")
+# debug flag for tlx
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_definitions(-DDEBUG=1)
+elseif (CMAKE_BUILD_TYPE STREQUAL "Release")
     add_definitions(-DDEBUG=0)
-    target_include_directories(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/tlx-plain ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/btree_tests/ParallelTools)
+elseif (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    add_definitions(-DDEBUG=0)
 else ()
+    message(FATAL_ERROR "unhandled profile")
+endif ()
+
+if (CONFIG_VARIANT STREQUAL "tlx")
+    target_include_directories(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/tlx-plain ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/btree_tests/ParallelTools)
+elseif (CONFIG_VARIANT STREQUAL "bpt")
+    target_include_directories(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/tlx-leafds ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/btree_tests/ParallelTools)
 endif ()
 
 file(GLOB CONFIG_HEADERS "btree/configs/*.hpp")

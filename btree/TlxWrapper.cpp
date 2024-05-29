@@ -22,7 +22,7 @@ void TlxWrapper::lookupImpl(std::span<uint8_t> key, std::function<void(std::span
             callback(it->second);
         }
     } else {
-        auto it = strings.find(KeyType{key});
+        auto it = strings.find(TlxKey{key});
         if (it != strings.end()) {
             callback(it->second);
         }
@@ -37,7 +37,7 @@ void TlxWrapper::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) 
             res.first->second = p;
         }
     } else {
-        KeyType k{key};
+        TlxKey k{key};
         k.makeOwned();
         auto res = strings.insert(std::make_pair(std::move(k), p));
         if (!res.second) {
@@ -46,14 +46,14 @@ void TlxWrapper::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) 
     }
 }
 
-KeyType::KeyType(const KeyType &other) : data(other.data), owned(other.owned) {
+TlxKey::TlxKey(const TlxKey &other) : data(other.data), owned(other.owned) {
     if (owned) {
         owned = false;
         makeOwned();
     }
 }
 
-void KeyType::makeOwned() {
+void TlxKey::makeOwned() {
     if (owned)
         abort();
     auto ptr = new uint8_t[data.size()];
@@ -61,24 +61,45 @@ void KeyType::makeOwned() {
     data = {ptr, data.size()};
 }
 
-bool KeyType::operator<(const KeyType &other) const {
+bool TlxKey::operator==(const TlxKey &other) const {
+    return data.size() == other.data.size() && memcmp(data.data(), other.data.data(), data.size()) == 0;
+}
+
+bool TlxKey::operator==(const int &other) const {
+    // TODO bp-tree compares keys against a literal 0 for some reason, this is the most sensible implementation I could come up with.
+    if (other == 0) {
+        return data.size() == 0;
+    } else {
+        abort();
+    }
+}
+
+bool TlxKey::operator<(const TlxKey &other) const {
     return std::lexicographical_compare(data.begin(), data.end(), other.data.begin(), other.data.end());
 }
 
-bool KeyType::operator<=(const KeyType &other) const {
+bool TlxKey::operator<=(const TlxKey &other) const {
     return !(other < *this);
 }
 
-KeyType::~KeyType() {
+bool TlxKey::operator>(const TlxKey &other) const {
+    return other < *this;
+}
+
+bool TlxKey::operator>=(const TlxKey &other) const {
+    return other <= *this;
+}
+
+TlxKey::~TlxKey() {
     if (owned)
         delete[] data.data();
 }
 
-KeyType::KeyType(KeyType &&other) : data(other.data), owned(other.owned) {
+TlxKey::TlxKey(TlxKey &&other) : data(other.data), owned(other.owned) {
     other.owned = false;
 }
 
-KeyType &KeyType::operator=(const KeyType &other) {
+TlxKey &TlxKey::operator=(const TlxKey &other) {
     if (owned)
         delete[] data.data();
     data = other.data;
@@ -88,7 +109,7 @@ KeyType &KeyType::operator=(const KeyType &other) {
     return *this;
 }
 
-KeyType &KeyType::operator=(KeyType &&other) {
+TlxKey &TlxKey::operator=(TlxKey &&other) {
     if (owned)
         delete[] data.data();
     data = other.data;
@@ -99,7 +120,7 @@ KeyType &KeyType::operator=(KeyType &&other) {
 
 static uint8_t EMPTY_KEY = 0;
 
-KeyType::KeyType() : data({&EMPTY_KEY, 0}), owned(false) {}
+TlxKey::TlxKey() : data({&EMPTY_KEY, 0}), owned(false) {}
 
 void TlxWrapper::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
                                   const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
@@ -117,7 +138,7 @@ void TlxWrapper::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
             ++it;
         }
     } else {
-        auto it = strings.find(KeyType{key});
+        auto it = strings.find(TlxKey{key});
         while (it != strings.end()) {
             memcpy(keyOutBuffer, it->first.data.data(), it->first.data.size());
             if (!found_record_cb(it->first.data.size(), it->second))
@@ -126,5 +147,11 @@ void TlxWrapper::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
         }
     }
 }
+
+template<>
+const unsigned int LeafDS<4096ul, 4096ul, 32ul, unsigned int, std::vector<unsigned char, std::allocator<unsigned char> > >::NULL_VAL = 0;
+
+template<>
+const TlxKey LeafDS<4096ul, 4096ul, 32ul, TlxKey, std::vector<unsigned char, std::allocator<unsigned char> > >::NULL_VAL{};
 
 #endif

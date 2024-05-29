@@ -11,29 +11,37 @@
 #include "nodes.hpp"
 #include "container/btree_map.hpp"
 
-struct KeyType {
+struct TlxKey {
     std::span<uint8_t> data;
     bool owned;
 
-    KeyType();
+    TlxKey();
 
-    KeyType(std::span<uint8_t> data) : data(data), owned(false) {}
+    TlxKey(std::span<uint8_t> data) : data(data), owned(false) {}
 
-    KeyType(const KeyType &other);
+    TlxKey(const TlxKey &other);
 
-    KeyType(KeyType &&other);
+    TlxKey(TlxKey &&other);
 
-    ~KeyType();
+    ~TlxKey();
 
     void makeOwned();
 
-    bool operator<(const KeyType &other) const;
+    bool operator==(const TlxKey &other) const;
 
-    bool operator<=(const KeyType &other) const;
+    bool operator==(const int &other) const;
 
-    KeyType &operator=(const KeyType &other);
+    bool operator<(const TlxKey &other) const;
 
-    KeyType &operator=(KeyType &&other);
+    bool operator>(const TlxKey &other) const;
+
+    bool operator>=(const TlxKey &other) const;
+
+    bool operator<=(const TlxKey &other) const;
+
+    TlxKey &operator=(const TlxKey &other);
+
+    TlxKey &operator=(TlxKey &&other);
 };
 
 struct TlxWrapper {
@@ -44,8 +52,8 @@ struct TlxWrapper {
     bool isInt;
     tlx::btree_map<uint32_t, std::vector<uint8_t>, std::less<uint32_t>, tlx::btree_default_traits<uint32_t, std::vector<uint8_t>, BTREE_CMAKE_PAGE_SIZE, BTREE_CMAKE_PAGE_SIZE>,
             std::allocator<std::pair<uint32_t, std::vector<uint8_t>>>, true> integers;
-    tlx::btree_map<KeyType, std::vector<uint8_t>, std::less<KeyType>, tlx::btree_default_traits<KeyType, std::vector<uint8_t>, BTREE_CMAKE_PAGE_SIZE, BTREE_CMAKE_PAGE_SIZE>,
-            std::allocator<std::pair<KeyType, std::vector<uint8_t>>>, true> strings;
+    tlx::btree_map<TlxKey, std::vector<uint8_t>, std::less<TlxKey>, tlx::btree_default_traits<TlxKey, std::vector<uint8_t>, BTREE_CMAKE_PAGE_SIZE, BTREE_CMAKE_PAGE_SIZE>,
+            std::allocator<std::pair<TlxKey, std::vector<uint8_t>>>, true> strings;
 
     void lookupImpl(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback);
 
