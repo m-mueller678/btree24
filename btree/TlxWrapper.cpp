@@ -32,11 +32,17 @@ void TlxWrapper::lookupImpl(std::span<uint8_t> key, std::function<void(std::span
 void TlxWrapper::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
     std::vector<uint8_t> p{payload.begin(), payload.end()};
     if (isInt) {
-        integers.insert(std::make_pair(unwrap_int_key(key), p));
+        auto res = integers.insert(std::make_pair(unwrap_int_key(key), p));
+        if (!res.second) {
+            res.first->second = p;
+        }
     } else {
         KeyType k{key};
         k.makeOwned();
-        strings.insert(std::make_pair(std::move(k), p));
+        auto res = strings.insert(std::make_pair(std::move(k), p));
+        if (!res.second) {
+            res.first->second = p;
+        }
     }
 }
 

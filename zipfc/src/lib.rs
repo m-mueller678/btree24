@@ -201,7 +201,7 @@ fn generate_test(count: u32, rng: &mut MainRng) -> Vec<Key> {
 
     let mut out = vec![Vec::new(); count as usize];
     let chunks: Vec<(&mut [Vec<u8>], MainRng)> = out
-        .chunks_mut(count as usize / 32)
+        .chunks_mut((count as usize / 32).max(16))
         .zip(rng_stream(rng))
         .collect();
     chunks.into_par_iter().for_each(|(chunk, mut rng)| {
