@@ -41,8 +41,8 @@ add_executable(btree24 btree/main.cpp
         btree/TlxWrapper.hpp
         btree/TlxWrapper.cpp
         ${CONFIG_HEADERS}
-        btree/HotWrapper.cpp
-        btree/HotWrapper.hpp
+        btree/HotBTreeAdapter.cpp
+        btree/HotBTreeAdapter.hpp
         btree/tuple.hpp
 )
 
@@ -66,6 +66,7 @@ elseif (CONFIG_VARIANT STREQUAL "hot")
             ${CMAKE_SOURCE_DIR}/vendor/hot/libs/hot/commons/include/
             ${CMAKE_SOURCE_DIR}/vendor/hot/libs/idx/content-helpers/include/
     )
+    target_link_libraries(btree24 PRIVATE tbb)
 endif ()
 
 file(GLOB CONFIG_HEADERS "btree/configs/*.hpp")
@@ -94,8 +95,14 @@ IF (asan)
     add_link_options(-fsanitize=address)
 ENDIF (asan)
 
-if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    message(FATAL_ERROR "You probably want to use clang to compile this, as gcc does not support some SIMD stuff we use in HashLeaf")
+if (CONFIG_VARIANT STREQUAL "hot")
+    if (NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        message(FATAL_ERROR "HOT only works with GCC due to template magic")
+    endif ()
+else ()
+    if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "You probably want to use clang to compile this, as gcc does not support some SIMD stuff we use in HashLeaf")
+    endif ()
 endif ()
 
 if (CONFIG_VARIANT)

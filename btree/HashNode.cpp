@@ -160,10 +160,15 @@ typedef uint8_t HashSimdVecByte __attribute__((vector_size(hashSimdWidth)));
 typedef bool HashSimdVecBool __attribute__((ext_vector_type(hashSimdWidth)));
 
 inline HashSimdBitMask hashSimdEq(HashSimdVecByte *a, HashSimdVecByte *b) {
+    // this only works on clang, but hot only works on gcc
+#ifdef USE_STRUCTURE_HOT
+    abort();
+#else
     HashSimdVecBool equality = __builtin_convertvector(*a == *b, HashSimdVecBool);
     HashSimdBitMask equality_bits;
     memcpy(&equality_bits, &equality, sizeof(HashSimdBitMask));
     return equality_bits;
+#endif
 }
 
 int HashNode::findIndexSimd(std::span<uint8_t> key, uint8_t hash) {
