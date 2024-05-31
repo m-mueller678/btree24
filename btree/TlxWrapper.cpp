@@ -29,6 +29,8 @@ void TlxWrapper::lookupImpl(std::span<uint8_t> key, std::function<void(std::span
     }
 }
 
+// apparently, tlx cannot do atomic updates.
+// this breaks our test with multithreading, but the benchmarks do not need it.
 void TlxWrapper::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
     std::vector<uint8_t> p{payload.begin(), payload.end()};
     if (isInt) {
@@ -148,10 +150,12 @@ void TlxWrapper::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
     }
 }
 
+#ifdef BP_TREE
 template<>
 const unsigned int LeafDS<4096ul, 4096ul, 32ul, unsigned int, std::vector<unsigned char, std::allocator<unsigned char> > >::NULL_VAL = 0;
 
 template<>
 const TlxKey LeafDS<4096ul, 4096ul, 32ul, TlxKey, std::vector<unsigned char, std::allocator<unsigned char> > >::NULL_VAL{};
+#endif
 
 #endif

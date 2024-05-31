@@ -1,4 +1,5 @@
 #define USE_STRUCTURE_TLX
+#define BP_TREE
 constexpr bool enablePrefix = true;
 constexpr bool enableBasicHead = true;
 constexpr bool enableDense = false;
