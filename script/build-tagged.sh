@@ -1,5 +1,8 @@
 set -e
 
+GCC_VERSION=11
+CLANG_VERSION=15
+
 if [ "$#" -ne 4 ]; then
     echo "use: build <build_dir> <btree_repo_dir> <config> <log2(pagesize)>"
     exit 1  # Exit with a non-zero status to indicate an error
@@ -40,9 +43,9 @@ else
     nosync_flag="-Dnosync=OFF"
 fi
 
-compiler_flags="-DCMAKE_C_COMPILER=clang-15 -DCMAKE_CXX_COMPILER=clang++-15"
+compiler_flags="-DCMAKE_C_COMPILER=clang-$CLANG_VERSION -DCMAKE_CXX_COMPILER=clang++-$CLANG_VERSION"
 if [ "$config" == "hot" ]; then
-    compiler_flags="-DCMAKE_C_COMPILER=gcc-11 -DCMAKE_CXX_COMPILER=g++-11"
+    compiler_flags="-DCMAKE_C_COMPILER=gcc-$GCC_VERSION -DCMAKE_CXX_COMPILER=g++-$GCC_VERSION"
     rm -r "$build_dir/CMakeFiles"
 fi
 
