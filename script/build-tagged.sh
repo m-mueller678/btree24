@@ -40,10 +40,15 @@ else
     nosync_flag="-Dnosync=OFF"
 fi
 
+compiler_flags="-DCMAKE_C_COMPILER=clang-15 -DCMAKE_CXX_COMPILER=clang++-15"
+if [ "$config" == "hot" ]; then
+    compiler_flags="-DCMAKE_C_COMPILER=gcc-11 -DCMAKE_CXX_COMPILER=g++-11"
+    rm -r "$build_dir/CMakeFiles"
+fi
+
 cmake \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_C_COMPILER=clang-15 \
-  -DCMAKE_CXX_COMPILER=clang++-15 \
+  $compiler_flags \
   -DCONFIG_VARIANT="$config" \
   -DPAGE_SIZE="$pagesize" \
   "$nosync_flag" \
@@ -55,3 +60,7 @@ bin_name="btree24-$commit_id-$3-$4$nosync_tag"
 mv btree24 "$bin_name"
 
 echo $(pwd)/"$bin_name"
+
+if [ "$config" == "hot" ]; then
+    rm -r "$build_dir/CMakeFiles"
+fi

@@ -41,7 +41,6 @@ add_executable(btree24 btree/main.cpp
         btree/TlxWrapper.hpp
         btree/TlxWrapper.cpp
         ${CONFIG_HEADERS}
-        btree/HotBTreeAdapter.cpp
         btree/HotBTreeAdapter.hpp
         btree/tuple.hpp
 )
@@ -67,6 +66,7 @@ elseif (CONFIG_VARIANT STREQUAL "hot")
             ${CMAKE_SOURCE_DIR}/vendor/hot/libs/idx/content-helpers/include/
     )
     target_link_libraries(btree24 PRIVATE tbb)
+    target_sources(btree24 PRIVATE btree/HotBTreeAdapter.cpp)
 endif ()
 
 file(GLOB CONFIG_HEADERS "btree/configs/*.hpp")
