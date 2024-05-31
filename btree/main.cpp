@@ -445,11 +445,7 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                 //std::cout << written_count << ' ' << write_count << ' ' << distinct_write_count << " " << read_count << std::endl;
                 for (int i = rangeStart(0, keyCount, threadCount, tid);
                      i < rangeStart(0, keyCount, threadCount, tid + 1); ++i) {
-#ifdef USE_STRUCTURE_HOT
-                    if (keyState[i].load(std::memory_order_relaxed) == WRITE_BIT)
-#else
                     if (keyState[i].load(std::memory_order_relaxed) & WRITE_BIT)
-#endif
                         keyState[i].store(batch, std::memory_order_relaxed);
                 }
             }

@@ -104,14 +104,14 @@ void HotBTreeAdapter::lookupImpl(std::span<uint8_t> key, std::function<void(std:
     }
 }
 
-// hot will not write to existing keys. This breaks the test, but the benchmarks do not use it.
 void HotBTreeAdapter::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
+    // if the key already exists, we leak the old tuple because cleanup is hard and the benchmark does not do updates anyway.
     if (hot->isInt) {
         uintptr_t tuple = Tuple::makeTuple(key, payload);
-        hot->int_hot.insert(reinterpret_cast<Tuple *>(tuple));
+        hot->int_hot.upsert(reinterpret_cast<Tuple *>(tuple));
     } else {
         uintptr_t tuple = Tuple::makeTuple(key, payload);
-        hot->string_hot.insert(reinterpret_cast<Tuple *>(tuple));
+        hot->string_hot.upsert(reinterpret_cast<Tuple *>(tuple));
     }
 }
 
