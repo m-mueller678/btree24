@@ -113,7 +113,7 @@ template<typename DiscriminativeBitsRepresentation, typename PartialKeyType> tem
 	HOTRowexChildPointer * __restrict__ targetPointers = this->getPointers();
 
 	SourcePartialKeyType __restrict__ const * existingMasks = sourceNode.mPartialKeys.mEntries;
-	PartialKeyType __restrict__ * targetMasks = mPartialKeys.mEntries;
+            PartialKeyType *__restrict__ targetMasks = mPartialKeys.mEntries;
 
 	PartialKeyConversionInformation const & conversionInformation = getConversionInformation(sourceNode, insertInformation);
 	hot::commons::DiscriminativeBit const & keyInformation = insertInformation.mKeyInformation;
@@ -209,7 +209,7 @@ template<typename DiscriminativeBitsRepresentation, typename PartialKeyType> tem
 	HOTRowexChildPointer * __restrict__ targetPointers = this->getPointers();
 
 	SourcePartialKeyType __restrict__ const * existingMasks = sourceNode.mPartialKeys.mEntries;
-	PartialKeyType __restrict__ * targetMasks = mPartialKeys.mEntries;
+    PartialKeyType *__restrict__ targetMasks = mPartialKeys.mEntries;
 
 	for(unsigned int targetIndex = 0; targetIndex < numberEntriesBeforeAffectedSubtree; ++targetIndex) {
 		unsigned int sourceIndex = firstIndexInRange + targetIndex;
