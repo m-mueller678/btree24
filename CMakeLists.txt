@@ -41,6 +41,9 @@ add_executable(btree24 btree/main.cpp
         btree/TlxWrapper.hpp
         btree/TlxWrapper.cpp
         ${CONFIG_HEADERS}
+        btree/HotWrapper.cpp
+        btree/HotWrapper.hpp
+        btree/tuple.hpp
 )
 
 # debug flag for tlx
@@ -58,6 +61,11 @@ if (CONFIG_VARIANT STREQUAL "tlx")
     target_include_directories(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/tlx-plain ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/btree_tests/ParallelTools)
 elseif (CONFIG_VARIANT STREQUAL "bpt")
     target_include_directories(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/tlx-leafds ${CMAKE_SOURCE_DIR}/vendor/BP-Tree/btree_tests/ParallelTools)
+elseif (CONFIG_VARIANT STREQUAL "hot")
+    target_include_directories(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/vendor/hot/libs/hot/rowex/include/
+            ${CMAKE_SOURCE_DIR}/vendor/hot/libs/hot/commons/include/
+            ${CMAKE_SOURCE_DIR}/vendor/hot/libs/idx/content-helpers/include/
+    )
 endif ()
 
 file(GLOB CONFIG_HEADERS "btree/configs/*.hpp")
