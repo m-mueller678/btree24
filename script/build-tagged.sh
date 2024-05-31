@@ -1,7 +1,7 @@
 set -e
 
-GCC_VERSION=11
-CLANG_VERSION=15
+GCC_VERSION="${11:GCC_VERSION}"
+CLANG_VERSION="${15:CLANG_VERSION}"
 
 if [ "$#" -ne 4 ]; then
     echo "use: build <build_dir> <btree_repo_dir> <config> <log2(pagesize)>"
