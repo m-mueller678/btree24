@@ -220,10 +220,12 @@ static void runMixed(BTreeCppPerfEvent e,
             uint8_t outBuffer[maxKvSize];
             unsigned threadIndexOffset = index_samples / threadCount * tid;
             unsigned local_ops_performed = 0;
+            t.start_batch();
             for (uint64_t i = rangeStart(0, preInsertCount, threadCount, tid);
                  i < rangeStart(0, preInsertCount, threadCount, tid + 1); i++) {
                 t.insert(data[i].span(), payload);
             }
+            t.end_batch();
             std::minstd_rand local_rng(tid);
             std::uniform_int_distribution range_len_distribution(unsigned(1), maxScanLength);
             auto rng = create_zipfc_rng(0, tid, "thread_rng");
@@ -231,6 +233,7 @@ static void runMixed(BTreeCppPerfEvent e,
             fill_u64_single_thread(rng, reinterpret_cast<uint64_t *>(ops.data()), ops.size() / 8);
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
+            t.start_batch();
             while (keepWorking.load(std::memory_order::relaxed)) {
                 local_ops_performed += 1;
                 if (local_ops_performed % ops.size() == 0) {
@@ -272,6 +275,7 @@ static void runMixed(BTreeCppPerfEvent e,
                 }
             }
             ops_performed += local_ops_performed - 1;
+            t.end_batch();
             barrier.arrive_and_wait();
         }, i);
     }
@@ -343,6 +347,8 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
 
                 for (uint32_t phase = 0; phase <= 1; ++phase) {
                     barrier.arrive_and_wait();
+                    if (phase == 1)
+                        tree.start_batch();
                     // minstd_rand is not sufficient here, there is much less overlap between reads and writes than would be expected.
                     std::mt19937 local_rng(tid + batch * threadCount);
                     for (uint32_t op = 0; op < ops_per_batch; ++op) {
@@ -439,6 +445,8 @@ void runTest(unsigned int threadCount, unsigned int keyCount, unsigned int seed)
                             }
                         }
                     }
+                    if (phase == 1)
+                        tree.end_batch();
                 }
                 barrier.arrive_and_wait();
                 // this is lower than it should be

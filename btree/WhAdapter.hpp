@@ -19,4 +19,8 @@ struct WhAdapter {
 
     void range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
                           const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb);
+
+    void start_batch();
+
+    void end_batch();
 };

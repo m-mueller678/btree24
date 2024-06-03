@@ -1,10 +1,14 @@
+#include "config.hpp"
+
+#ifdef USE_STRUCTURE_WH
 
 #include "WhAdapter.hpp"
 #include "wormhole/lib.h"
 #include "wormhole/ctypes.h"
 #include "wormhole/kv.h"
 #include "wormhole/wh.h"
-#include "config.hpp"
+
+__thread wormref *ref = nullptr;
 
 WhAdapter::WhAdapter(bool isInt) {
     wh = wh_create();
@@ -15,24 +19,19 @@ WhAdapter::~WhAdapter() {
 }
 
 void WhAdapter::lookupImpl(std::span<uint8_t> key, std::function<void(std::span<uint8_t>)> callback) {
-    struct wormref *ref = wh_ref(wh);
     u8 buffer[maxKvSize];
     u32 valLenOut;
     if (wh_get(ref, key.data(), key.size(), buffer, BTREE_CMAKE_PAGE_SIZE, &valLenOut)) {
         callback({buffer, valLenOut});
-    }
-    wh_unref(ref);
+    };
 }
 
 void WhAdapter::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
-    struct wormref *ref = wh_ref(wh);
     wh_put(ref, key.data(), key.size(), payload.data(), payload.size());
-    wh_unref(ref);
 }
 
 void WhAdapter::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
                                  const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
-    struct wormref *ref = wh_ref(wh);
     struct wormhole_iter *iter = wh_iter_create(ref);
     u8 valOut[maxKvSize];
     u32 keyLenOut;
@@ -47,6 +46,19 @@ void WhAdapter::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
         wh_iter_skip1(iter);
     }
     wh_iter_destroy(iter);
-    wh_unref(ref);
 }
 
+
+void WhAdapter::start_batch() {
+    if (ref)
+        abort();
+    ref = wh_ref(wh);
+}
+
+
+void WhAdapter::end_batch() {
+    wh_unref(ref);
+    ref = nullptr;
+}
+
+#endif

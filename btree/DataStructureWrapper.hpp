@@ -55,6 +55,18 @@ struct DataStructureWrapper {
                       const std::function<bool(unsigned, std::span<uint8_t>)> &found_record_cb);
 
     void testing_update_payload(uint8_t *key, unsigned int keyLength, uint8_t *payload);
+
+    void start_batch() {
+#ifdef USE_STRUCTURE_WH
+        impl.start_batch();
+#endif
+    }
+
+    void end_batch() {
+#ifdef USE_STRUCTURE_WH
+        impl.end_batch();
+#endif
+    }
 };
 
 #endif //BTREE24_DATASTRUCTUREWRAPPER_HPP
