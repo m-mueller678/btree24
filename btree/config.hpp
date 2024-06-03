@@ -31,5 +31,5 @@ constexpr unsigned pageSize = BTREE_CMAKE_PAGE_SIZE;
 constexpr unsigned pageSizeLeaf = pageSize;
 constexpr unsigned pageSizeInner = pageSize;
 
-constexpr unsigned maxKvSize = (pageSize - 128) / 5;
+constexpr unsigned maxKvSize = (pageSize - 256) / 4;
 constexpr unsigned hashSimdWidth = sizeof(HashSimdBitMask) * 8;
