@@ -255,10 +255,11 @@ void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
     }
 }
 
-static void nodeCountVisit(AnyNode &node, std::array<uint32_t, TAG_END + 1> &counts) {
+static void nodeCountVisit(AnyNode &node, std::array<uint32_t, TAG_END + 2> &counts) {
     counts[static_cast<unsigned>(node.tag())] += 1;
     switch (node.tag()) {
         case Tag::Inner:
+            counts[TAG_END + 1] += node.basic()->prefixLength;
             for (int i = 0; i <= node.basic()->count; ++i) {
                 GuardX<AnyNode> child((i == node.basic()->count) ? node.basic()->upper : node.basic()->getChild(i));
                 nodeCountVisit(*child.ptr, counts);
@@ -266,18 +267,21 @@ static void nodeCountVisit(AnyNode &node, std::array<uint32_t, TAG_END + 1> &cou
             break;
         case Tag::Leaf:
             counts[TAG_END] += node.basic()->count;
+            counts[TAG_END + 1] += node.basic()->prefixLength;
             break;
         case Tag::Hash:
             counts[TAG_END] += node.hash()->count;
+            counts[TAG_END + 1] += node.hash()->prefixLength;
             break;
         case Tag::Dense:
         case Tag::Dense2:
             counts[TAG_END] += node.dense()->occupiedCount;
+            counts[TAG_END + 1] += node.dense()->prefixLength;
             break;
     }
 }
 
-void BTree::nodeCount(std::array<uint32_t, TAG_END + 1> &counts) {
+void BTree::nodeCount(std::array<uint32_t, TAG_END + 2> &counts) {
     // TODO node count causes issues with paging
     GuardX<MetaDataPage> meta{metadataPid};
     GuardX<AnyNode> node(meta->root);

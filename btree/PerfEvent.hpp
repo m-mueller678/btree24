@@ -238,7 +238,7 @@ struct BTreeCppPerfEventBlock {
                                                                                                          &ds) { e.startCounters(); }
 
     void pushNodeCounts() {
-        std::array<uint32_t, TAG_END + 1> counts;
+        std::array<uint32_t, TAG_END + 2> counts;
         counts.fill(0);
 #if defined(USE_STRUCTURE_BTREE)
         data_strcuture_wrapper->impl.nodeCount(counts);
@@ -247,6 +247,7 @@ struct BTreeCppPerfEventBlock {
             push(std::string{"nodeCount_"} + tag_name(Tag(i)), std::to_string(counts[i]));
         }
         push("counted_final_key_count", std::to_string(counts[TAG_END]));
+        push("prefix_len_sum", std::to_string(counts[TAG_END + 1]));
     }
 
     void push(std::string k, std::string v) {

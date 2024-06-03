@@ -24,7 +24,7 @@ struct BTree {
 
     void ensureSpace(PID innerNode, std::span<uint8_t> key);
 
-    void nodeCount(std::array<uint32_t, TAG_END + 1> &counts);
+    void nodeCount(std::array<uint32_t, TAG_END + 2> &counts);
 };
 
 
