@@ -43,6 +43,8 @@ add_executable(btree24 btree/main.cpp
         ${CONFIG_HEADERS}
         btree/HotBTreeAdapter.hpp
         btree/tuple.hpp
+        btree/WhAdapter.cpp
+        btree/WhAdapter.hpp
 )
 
 # debug flag for tlx
@@ -67,7 +69,11 @@ elseif (CONFIG_VARIANT STREQUAL "hot")
     )
     target_link_libraries(btree24 PRIVATE tbb)
     target_sources(btree24 PRIVATE btree/HotBTreeAdapter.cpp)
+elseif (CONFIG_VARIANT STREQUAL "wh")
+    target_link_libraries(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/vendor/wormhole/libwh.so)
 endif ()
+
+target_include_directories(btree24 PRIVATE ${CMAKE_SOURCE_DIR}/vendor/)
 
 file(GLOB CONFIG_HEADERS "btree/configs/*.hpp")
 

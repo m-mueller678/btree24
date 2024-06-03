@@ -6,6 +6,7 @@
 #include "vmcache_btree.hpp"
 #include "TlxWrapper.hpp"
 #include "HotBTreeAdapter.hpp"
+#include "WhAdapter.hpp"
 #include <map>
 
 struct DataStructureWrapper {
@@ -23,7 +24,7 @@ struct DataStructureWrapper {
 #elif defined(USE_STRUCTURE_HOT)
     HotBTreeAdapter impl;
 #elif defined(USE_STRUCTURE_WH)
-    WhBTreeAdapter impl;
+    WhAdapter impl;
 #elif defined(USE_STRUCTURE_TLX)
     TlxWrapper impl;
 #endif
