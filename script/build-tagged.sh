@@ -52,7 +52,7 @@ if [ "$config" == "hot" ]; then
 fi
 
 cmake \
-  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   $compiler_flags \
   -DCONFIG_VARIANT="$config" \
   -DPAGE_SIZE="$pagesize" \
