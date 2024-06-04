@@ -59,7 +59,7 @@ cmake \
   "$nosync_flag" \
   "$source_dir" \
    > btree_cmake_log 2>&1
-cmake --build . >> btree_cmake_log 2>&1
+cmake --build . --parallel 32 >> btree_cmake_log 2>&1
 bin_name="btree24-$commit_id-$3-$4$nosync_tag"
 
 mv btree24 "$bin_name"
