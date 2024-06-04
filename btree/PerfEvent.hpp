@@ -74,6 +74,7 @@ struct BTreeCppPerfEvent {
         registerCounter("cycle", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES);
         registerCounter("stall_b", PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_BACKEND);
         registerCounter("stall_f", PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_FRONTEND);
+        registerCounter("kcycle", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES, true);
         // registerCounter("scycle", PERF_TYPE_RAW, 0x43FFAE);  // zen3
         registerCounter("instr", PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
         // registerCounter("L1-miss", PERF_TYPE_HW_CACHE,
