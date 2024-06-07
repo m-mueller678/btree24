@@ -330,6 +330,25 @@ pub unsafe extern "C" fn fill_u64_single_thread(
     rng.fill(dst);
 }
 
+
+#[no_mangle]
+pub unsafe extern "C" fn fill_u64_single_thread_range(
+    rng: *mut MainRng,
+    data: *mut u64,
+    count: u64,
+    min:u64,
+    max:u64,
+) {
+    let rng = &mut *rng;
+    let dist = Uniform::new(min,max.checked_add(1).unwrap());
+    {
+        let dst = from_raw_parts_mut(data as *mut MaybeUninit<u64>, count as usize);
+        for d in dst{
+            d.write(dist.sample(rng));
+        }
+    }
+}
+
 fn fill_zipf(rng: &mut Xoshiro256StarStar, dst: &mut [MaybeUninit<u32>], key_count: u32, p: f64) {
     if key_count == 0 {
         assert!(dst.is_empty());

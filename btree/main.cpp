@@ -179,6 +179,68 @@ static void runMulti(BTreeCppPerfEvent e,
     }
 }
 
+static void runPartitionedInsert(BTreeCppPerfEvent e,
+                                 unsigned partition_count,
+                                 unsigned keyCount,
+                                 unsigned workDuration,
+                                 unsigned payloadSize,
+                                 unsigned threadCount
+) {
+    constexpr unsigned index_samples = 1 << 25;
+    uint8_t *payloadPtr = makePayload(payloadSize);
+    std::span payload{payloadPtr, payloadSize};
+    std::atomic_bool keepWorking = true;
+    std::atomic<uint64_t> ops_performed = 0;
+    DataStructureWrapper t(isDataInt(e));
+    setVmcacheWorkerThreadId(threadCount);
+    std::vector<std::thread> threads;
+    std::barrier barrier{threadCount + 1};
+
+    for (int i = 0; i < threadCount; ++i) {
+        // Start a thread and execute threadFunction with the thread ID as argument
+        threads.emplace_back([&](unsigned tid) {
+            union {
+                uint8_t b[8];
+                struct {
+                    uint32_t tid;
+                    uint32_t counter;
+                };
+            } nextKey;
+            nextKey.tid = tid;
+            uint32_t local_ops_performed = 0;
+            setVmcacheWorkerThreadId(tid);
+            barrier.arrive_and_wait();
+            barrier.arrive_and_wait();
+            //insert
+            for (; keepWorking.load(std::memory_order::relaxed); ++local_ops_performed) {
+                nextKey.counter = __builtin_bswap32(local_ops_performed);
+                t.insert({nextKey.b, 8}, payload);
+            }
+            ops_performed += local_ops_performed;
+            barrier.arrive_and_wait();
+        }, i);
+    }
+
+    {
+        {
+            barrier.arrive_and_wait();
+            e.setParam("op", "insert_thread_partition");
+            BTreeCppPerfEventBlock b(e, t, 1);
+            barrier.arrive_and_wait();
+            sleep(workDuration);
+            keepWorking.store(false, std::memory_order::relaxed);
+            // work
+            barrier.arrive_and_wait();
+            b.scale = ops_performed;
+        }
+
+        // Wait for all threads to complete
+        for (auto &thread: threads) {
+            thread.join();
+        }
+    }
+}
+
 
 static void runMixed(BTreeCppPerfEvent e,
                      Key *data,
@@ -578,7 +640,6 @@ int main(int argc, char *argv[]) {
     }
 
     if (ycsb_variant >= 6000 && ycsb_variant < 7000) {
-
         runMixed(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount,
                  ycsb_variant / 100 % 10, ycsb_variant / 10 % 10, ycsb_variant % 10);
     } else
@@ -590,6 +651,10 @@ int main(int argc, char *argv[]) {
                 runLargeInsert(threadCount, duration);
                 break;
             }
+            case 403: {
+                runPartitionedInsert(e, keyCount, partition_count, duration, payloadSize, threadCount);
+                break;
+            }
             case 501: {
                 abort();
             }
@@ -598,7 +663,8 @@ int main(int argc, char *argv[]) {
                 break;
             }
             case 601: {
-                runMixed(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount, 1, 6, 1);
+                runMixed(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount, 1, 6,
+                         1);
                 break;
             }
             default: {

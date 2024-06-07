@@ -30,4 +30,8 @@ uint32_t *generate_zipf_indices(
 void fill_u64_single_thread(ZipfcRng *rng, uint64_t *data, uint64_t count);
 }
 
+
+void fill_u64_single_thread_range(ZipfcRng *rng, uint64_t *data, uint64_t count, uint64_t min, uint64_t max);
+
+
 #endif //BTREE24_ZIPFC_H
