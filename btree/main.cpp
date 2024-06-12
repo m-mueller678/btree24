@@ -65,7 +65,8 @@ static void runMulti(BTreeCppPerfEvent e,
                      unsigned workDuration,
                      double zipfParameter,
                      unsigned maxScanLength,
-                     unsigned threadCount
+                     unsigned threadCount,
+                     bool preInsert
 ) {
     constexpr unsigned index_samples = 1 << 25;
     uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
@@ -88,12 +89,25 @@ static void runMulti(BTreeCppPerfEvent e,
             uint8_t outBuffer[maxKvSize];
             unsigned threadIndexOffset = index_samples / threadCount * tid;
             unsigned local_ops_performed = 0;
+            if (preInsert) {
+                for (uint64_t i = rangeStart(0, preInsertCount, threadCount, tid);
+                     i < rangeStart(0, preInsertCount, threadCount, tid + 1); i++) {
+                    t.insert(data[i].span(), payload);
+                }
+            }
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
             //insert
-            for (uint64_t i = rangeStart(0, keyCount, threadCount, tid);
-                 i < rangeStart(0, keyCount, threadCount, tid + 1); i++) {
-                t.insert(data[i].span(), payload);
+            if (preInsert) {
+                for (uint64_t i = rangeStart(preInsertCount, keyCount, threadCount, tid);
+                     i < rangeStart(preInsertCount, keyCount, threadCount, tid + 1); i++) {
+                    t.insert(data[i].span(), payload);
+                }
+            } else {
+                for (uint64_t i = rangeStart(0, keyCount, threadCount, tid);
+                     i < rangeStart(0, keyCount, threadCount, tid + 1); i++) {
+                    t.insert(data[i].span(), payload);
+                }
             }
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
@@ -139,7 +153,13 @@ static void runMulti(BTreeCppPerfEvent e,
     {
         //pre insert
         barrier.arrive_and_wait();
-        {
+        if (preInsert) {
+            e.setParam("op", "insert90");
+            BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
+            barrier.arrive_and_wait();
+            // work
+            barrier.arrive_and_wait();
+        } else {
             e.setParam("op", "insert0");
             BTreeCppPerfEventBlock b(e, t, keyCount);
             barrier.arrive_and_wait();
@@ -659,12 +679,16 @@ int main(int argc, char *argv[]) {
                 abort();
             }
             case 6: {
-                runMulti(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount);
+                runMulti(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount, false);
                 break;
             }
             case 601: {
                 runMixed(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount, 1, 6,
                          1);
+                break;
+            }
+            case 602: {
+                runMulti(e, data, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount, true);
                 break;
             }
             default: {
