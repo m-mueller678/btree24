@@ -4,6 +4,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <functional>
 #include "PerfEvent.hpp"
 #include "common.hpp"
 #include <iostream>
@@ -116,7 +117,7 @@ static void runMulti(BTreeCppPerfEvent e,
                 unsigned keyIndex = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
                 assert(keyIndex < keyCount);
                 if (!t.lookup(data[keyIndex].span())) {
-                    std::cout << "missing key" << std::endl;
+                    std::cout << "missing key " << keyIndex << std::endl;
                     abort();
                 }
                 local_ops_performed += 1;
@@ -166,6 +167,143 @@ static void runMulti(BTreeCppPerfEvent e,
             // work
             barrier.arrive_and_wait();
         }
+        ops_performed.store(0);
+        {
+            e.setParam("op", "ycsb_c");
+            BTreeCppPerfEventBlock b(e, t, 1);
+            barrier.arrive_and_wait();
+            // work
+            sleep(workDuration);
+            keepWorking.store(false, std::memory_order::relaxed);
+            barrier.arrive_and_wait();
+            keepWorking.store(true, std::memory_order::relaxed);
+            b.scale = ops_performed.load(std::memory_order::relaxed);
+        }
+        ops_performed.store(0);
+        {
+            e.setParam("op", "ycsb_e");
+            BTreeCppPerfEventBlock b(e, t, 1);
+            barrier.arrive_and_wait();
+            //work
+            sleep(workDuration);
+            keepWorking.store(false, std::memory_order::relaxed);
+            barrier.arrive_and_wait();
+            keepWorking.store(true, std::memory_order::relaxed);
+            b.scale = ops_performed.load(std::memory_order::relaxed);
+        }
+        ops_performed.store(0);
+    }
+
+    // Wait for all threads to complete
+    for (auto &thread: threads) {
+        thread.join();
+    }
+}
+
+
+static void runMultiLarge(BTreeCppPerfEvent e,
+                          std::function<Key(uint64_t *)> data,
+                          std::function<void(uint64_t, Key)> replace_data,
+                          uint64_t keyCount,
+                          unsigned payloadSize,
+                          unsigned workDuration,
+                          double zipfParameter,
+                          unsigned maxScanLength,
+                          unsigned threadCount,
+                          uint8_t extraInserts = 0
+) {
+    constexpr unsigned index_samples = 1 << 25;
+    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
+
+    uint8_t *payloadPtr = makePayload(payloadSize);
+    std::span payload{payloadPtr, payloadSize};
+    unsigned preInsertCount = keyCount - keyCount / 10;
+    std::atomic_bool keepWorking = true;
+    std::atomic<uint64_t> ops_performed = 0;
+
+    DataStructureWrapper t(isDataInt(e));
+
+    setVmcacheWorkerThreadId(threadCount);
+    std::vector<std::thread> threads;
+    std::barrier barrier{threadCount + 1};
+    for (int i = 0; i < threadCount; ++i) {
+        // Start a thread and execute threadFunction with the thread ID as argument
+        threads.emplace_back([&](unsigned tid) {
+            setVmcacheWorkerThreadId(tid);
+            uint8_t outBuffer[maxKvSize];
+            unsigned threadIndexOffset = index_samples / threadCount * tid;
+            unsigned local_ops_performed = 0;
+            barrier.arrive_and_wait();
+            barrier.arrive_and_wait();
+            //insert
+            for (uint64_t i = rangeStart(0, keyCount, threadCount, tid);
+                 i < rangeStart(0, keyCount, threadCount, tid + 1); i++) {
+                Key key = data(&i);
+                if (extraInserts > 0) {
+                    for (unsigned j = 0; j <= extraInserts; ++j) {
+                        outBuffer[0] = j;
+                        memcpy(outBuffer + 1, key.data, key.len);
+                        t.insert({outBuffer, key.len + 1}, payload);
+                    }
+                    uint8_t *extendedKey = new uint8_t[key.len + 1];
+                    extendedKey[0] = i % (extraInserts + unsigned(1));
+                    memcpy(extendedKey + 1, key.data, key.len);
+                    replace_data(i, {extendedKey, key.len + 1});
+                } else {
+                    t.insert(key.span(), payload);
+                }
+            }
+            barrier.arrive_and_wait();
+            barrier.arrive_and_wait();
+            // ycsb-c
+            while (keepWorking.load(std::memory_order::relaxed)) {
+                uint64_t keyIndex = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
+                uint64_t keyIndexIn = keyIndex;
+                assert(keyIndex < keyCount);
+                if (!t.lookup(data(&keyIndexIn).span())) {
+                    std::cout << "missing key " << keyIndex << std::endl;
+                    abort();
+                }
+                local_ops_performed += 1;
+            }
+            ops_performed += local_ops_performed;
+            barrier.arrive_and_wait();
+            local_ops_performed = 0;
+            std::minstd_rand local_rng(tid);
+            std::uniform_int_distribution range_len_distribution(unsigned(1), maxScanLength);
+            barrier.arrive_and_wait();
+            // ycsb-e
+            while (keepWorking.load(std::memory_order::relaxed)) {
+                uint64_t index = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
+                Key key = data(&index);
+                assert(index < keyCount);
+                unsigned scanLength = range_len_distribution(local_rng);
+                while (keepWorking.load(std::memory_order::relaxed)) {
+                    unsigned scanCount = 0;
+                    try {
+                        t.range_lookup(key.span(), outBuffer, [&](unsigned keyLen, std::span<uint8_t> payload) {
+                            scanCount += 1;
+                            return scanCount < scanLength;
+                        });
+                        local_ops_performed += 1;
+                        break;
+                    } catch (OLCRestartException e) {
+                        continue;
+                    }
+                }
+            }
+            ops_performed += local_ops_performed;
+            barrier.arrive_and_wait();
+        }, i);
+    }
+    {
+        //pre insert
+        barrier.arrive_and_wait();
+        e.setParam("op", "insert0");
+        BTreeCppPerfEventBlock b(e, t, keyCount);
+        barrier.arrive_and_wait();
+        // work
+        barrier.arrive_and_wait();
         ops_performed.store(0);
         {
             e.setParam("op", "ycsb_c");
@@ -600,21 +738,21 @@ void runLargeInsert(unsigned int threadCount, unsigned int duration) {
     }
 }
 
-
 int main(int argc, char *argv[]) {
     unsigned threadCount = envu64("THREADS");
     unsigned rand_seed = getenv("SEED") ? envu64("SEED") : time(NULL);
     ZIPFC_RNG = create_zipfc_rng(rand_seed, 0, "main");
-    unsigned keyCount = envu64("KEY_COUNT");
 #ifdef CHECK_TREE_OPS
     std::cerr << "CHECK_TREE_OPS enabled, forcing single threaded" << std::endl;
     threadCount = 1;
 #endif
     uint64_t ycsb_variant = envu64("YCSB_VARIANT");
+    unsigned keyCount = envu64("KEY_COUNT");
     if (ycsb_variant == 7) {
         runTest(threadCount, keyCount, rand_seed);
         return 0;
     }
+
 
     if (!getenv("DATA")) {
         std::cerr << "no keyset" << std::endl;
@@ -650,8 +788,44 @@ int main(int argc, char *argv[]) {
     if (maxScanLength == 0) {
         throw;
     }
-
-    Key *data = zipfc_load_keys(ZIPFC_RNG, keySet.c_str(), keyCount, intDensity, partition_count);
+    Key *data;
+    if (ycsb_variant == 8) {
+        constexpr unsigned STRING_DIV = 128;
+        constexpr uint64_t SPARSE_PRIME = 1314734440756030799ull;
+        unsigned extraInsert = 0;
+        unsigned data_id;
+        if (keySet == "int") {
+            data_id = 0;
+        } else if (keySet == "rng8") {
+            data_id = 1;
+        } else {
+            std::cerr << "loading strings" << std::endl;
+            data_id = 2;
+            keyCount /= STRING_DIV;
+            extraInsert = STRING_DIV - 1;
+            data = zipfc_load_keys(ZIPFC_RNG, keySet.c_str(), keyCount, intDensity, partition_count);
+        }
+        if (keyCount % 128879 == 0) {
+            std::cerr << "unlucky key count" << std::endl;
+            abort();
+        }
+        auto getKey = [&](uint64_t *index) {
+            if (data_id < 2) {
+                *index = (128879 * (*index)) % keyCount;
+                *index = __builtin_bswap64((data_id == 0) ? (*index) : (*index * SPARSE_PRIME));
+                return Key{reinterpret_cast<uint8_t *>(index), 8};
+            } else {
+                return data[*index];
+            }
+        };
+        auto setKey = [&](uint64_t i, Key k) {
+            data[i] = k;
+        };
+        runMultiLarge(e, getKey, setKey, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount,
+                      extraInsert);
+        return 0;
+    }
+    data = zipfc_load_keys(ZIPFC_RNG, keySet.c_str(), keyCount, intDensity, partition_count);
     for (unsigned i = 0; i < keyCount; ++i) {
         if (data[i].len + payloadSize > maxKvSize) {
             std::cerr << "key too long for page size" << std::endl;
@@ -699,4 +873,105 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
+//
+//void runLarge(unsigned int threadCount, unsigned int keyCount, unsigned int seed) {
+//    constexpr unsigned TEXT_KEY_DIV = 128;
+//    constexpr uint64_t SPARSE_PRIME = 1314734440756030799ull;
+//    unsigned duration = envu64("DURATION");
+//    std::string data_name = getenv("DATA");
+//    unsigned data_id;
+//    uint32_t *zipfIndices = nullptr;
+//    Key *string_keys = nullptr;
+//    if (data_name == "int") {
+//        data_id = 0;
+//    } else if (data_name == "rng8") {
+//        data_id = 1;
+//    } else {
+//        keyCount /= TEXT_KEY_DIV;
+//        data_id = 2;
+//        string_keys = zipfc_load_keys(ZIPFC_RNG, data_name.c_str(), keyCount, 1, 1);
+//        generate_zipf_indices(ZIPFC_RNG, keyCount, 0.99, keyCount);
+//    }
+//
+//    DataStructureWrapper tree(false);
+//    std::atomic_bool keepWorking = true;
+//    std::atomic<uint64_t> ops_performed = 0;
+//
+//    DataStructureWrapper t(false);
+//
+//    std::vector<std::thread> threads;
+//    for (int i = 0; i < threadCount; ++i) {
+//        // Start a thread and execute threadFunction with the thread ID as argument
+//        threads.emplace_back([&](unsigned tid) {
+//            setVmcacheWorkerThreadId(tid);
+//            ZipfcRng *local_rng = create_zipfc_rng(seed, tid, "local");
+//            uint8_t key_buffer[128];
+//            std::vector<uint64_t> integers(1024, 0);
+//            uint64_t used_ints = integers.size();
+//
+//            auto generate_key = [&]() {
+//                switch (data_id) {
+//                    case 0: {
+//                        if (used_ints >= sizeof(integers) / sizeof(integers[0])) {
+//                            fill_u64_single_thread_range(local_rng, integers.data(), integers.size(), 0, keyCount - 1);
+//                            for (auto &x: integers) {
+//                                x = __builtin_bswap64(x);
+//                            }
+//                            used_ints = 0;
+//                        }
+//                        std::span<uint8_t> key(reinterpret_cast<uint8_t *>(integers.data() + used_ints), 8);
+//                        used_ints += 1;
+//                        return key;
+//                    }
+//                    case 1: {
+//                        if (used_ints >= sizeof(integers) / sizeof(integers[0])) {
+//                            fill_u64_single_thread_range(local_rng, integers.data(), integers.size(), 0, keyCount - 1);
+//                            for (auto &x: integers) {
+//                                x = __builtin_bswap64(x * SPARSE_PRIME);
+//                            }
+//                            used_ints = 0;
+//                        }
+//                        std::span<uint8_t> key(reinterpret_cast<uint8_t *>(integers.data() + used_ints), 8);
+//                        used_ints += 1;
+//                        return key;
+//                    }
+//                    default: {
+//                        abort();
+//                    }
+//                }
+//            };
+//            if (data_id < 2) {
+//                for (uint64_t i = rangeStart(0, keyCount, threadCount, tid);
+//                     i < rangeStart(0, keyCount, threadCount, tid + 1); ++i) {
+//                    uint64_t x = __builtin_bswap64(data_id == 1 ? (i * SPARSE_PRIME) : i);
+//                    tree.insert(x,)
+//                }
+//            }
+//
+//
+//        }, i);
+//    }
+//    {
+//
+//        auto start_time = std::chrono::steady_clock::now();
+//        // Main loop
+//        for (int i = 0; i < duration * 10; ++i) {
+//            // Sleep for one second
+//            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+//
+//            // Calculate elapsed time
+//            auto time = std::chrono::steady_clock::now();
+//            auto current_ops = ops_performed.load(std::memory_order::relaxed);
+//            auto elapsed_seconds =
+//                    std::chrono::duration_cast<std::chrono::microseconds>(time - start_time).count() * 1e-6;
+//
+//            std::cout << elapsed_seconds << "," << current_ops << "," << threadCount << std::endl;
+//        }
+//        keepWorking = false;
+//    }
+//    // Wait for all threads to complete
+//    for (auto &thread: threads) {
+//        thread.join();
+//    }
+//}
+//
