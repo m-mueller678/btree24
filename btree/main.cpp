@@ -217,7 +217,6 @@ static void runMultiLarge(BTreeCppPerfEvent e,
 
     uint8_t *payloadPtr = makePayload(payloadSize);
     std::span payload{payloadPtr, payloadSize};
-    unsigned preInsertCount = keyCount - keyCount / 10;
     std::atomic_bool keepWorking = true;
     std::atomic<uint64_t> ops_performed = 0;
 
@@ -238,7 +237,8 @@ static void runMultiLarge(BTreeCppPerfEvent e,
             //insert
             for (uint64_t i = rangeStart(0, keyCount, threadCount, tid);
                  i < rangeStart(0, keyCount, threadCount, tid + 1); i++) {
-                Key key = data(&i);
+                uint64_t i_in = i;
+                Key key = data(&i_in);
                 if (extraInserts > 0) {
                     for (unsigned j = 0; j <= extraInserts; ++j) {
                         outBuffer[0] = j;
@@ -299,11 +299,13 @@ static void runMultiLarge(BTreeCppPerfEvent e,
     {
         //pre insert
         barrier.arrive_and_wait();
-        e.setParam("op", "insert0");
-        BTreeCppPerfEventBlock b(e, t, keyCount);
-        barrier.arrive_and_wait();
-        // work
-        barrier.arrive_and_wait();
+        {
+            e.setParam("op", "insert0");
+            BTreeCppPerfEventBlock b(e, t, keyCount);
+            barrier.arrive_and_wait();
+            // work
+            barrier.arrive_and_wait();
+        }
         ops_performed.store(0);
         {
             e.setParam("op", "ycsb_c");
