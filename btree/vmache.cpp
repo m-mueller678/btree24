@@ -1,4 +1,5 @@
 #include "vmache.hpp"
+#include "common.hpp"
 
 static std::mutex AIO_ERROR_LOCK;
 __thread uint16_t workerThreadId = ~0;
@@ -53,7 +54,7 @@ BufferManager::BufferManager() : virtSize(envOr("VIRTGB", 16) * gb), physSize(en
     allocCount = 1; // pid 0 reserved for meta data
     readCount = 0;
     writeCount = 0;
-    batch = envOr("BATCH", 64);
+    batch = 32;
 
     std::cerr << "vmcache " << "blk:" << path << " virtgb:" << virtSize / gb << " physgb:" << physSize / gb << " exmap:"
               << useExmap << std::endl;
@@ -158,7 +159,10 @@ void BufferManager::unfixX(PID pid) {
 __thread std::atomic<uint64_t> guard_x_count = 0;
 
 void setVmcacheWorkerThreadId(uint16_t x) {
-    assert(x < maxWorkerThreads);
+    if (x >= maxWorkerThreads) {
+        std::cerr << "too many threads" << std::endl;
+        abort();
+    }
     workerThreadId = x;
 }
 
@@ -259,7 +263,10 @@ ResidentPageSet::ResidentPageSet(u64 maxCount) : count(next_pow2(maxCount * 1.5)
 }
 
 void LibaioInterface::writePages(const std::vector<PID> &pages) {
-    assert(pages.size() < maxIOs);
+    if (pages.size() >= maxIOs) {
+        std::cerr << "too many pages to write" << std::endl;
+        abort();
+    }
     for (u64 i = 0; i < pages.size(); i++) {
         PID pid = pages[i];
         virtMem[pid].tagAndDirty.set_dirty(false);
