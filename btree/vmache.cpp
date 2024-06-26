@@ -150,8 +150,6 @@ void BufferManager::unfixX(PID pid) {
     getPageState(pid).unlockX();
 }
 
-__thread std::atomic<uint64_t> guard_x_count = 0;
-
 void setVmcacheWorkerThreadId(uint16_t x) {
     if (x >= maxWorkerThreads) {
         std::cerr << "too many threads" << std::endl;

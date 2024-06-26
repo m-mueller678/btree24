@@ -467,8 +467,6 @@ private:
     GuardO() : ptr(nullptr) {}
 };
 
-extern __thread std::atomic<uint64_t> guard_x_count;
-
 template<class T>
 struct GuardX {
     T *ptr;
@@ -490,7 +488,6 @@ struct GuardX {
     explicit GuardX(u64 pid) {
         ptr = reinterpret_cast<T *>(bm.fixX(pid));
         reinterpret_cast<Page *>(ptr)->tagAndDirty.set_dirty(true);
-        guard_x_count.fetch_add(1, std::memory_order::relaxed);
     }
 
     explicit GuardX(GuardO<T> &&other) {
@@ -506,7 +503,6 @@ struct GuardX {
                     ptr = other.ptr;
                     reinterpret_cast<Page *>(ptr)->tagAndDirty.set_dirty(true);
                     other.ptr = nullptr;
-                    guard_x_count.fetch_add(1, std::memory_order::relaxed);
                     return;
                 }
             }
@@ -517,14 +513,12 @@ struct GuardX {
     GuardO<T> downgrade() &&{
         GuardO<T> other{ptr, bm.getPageState(pid()).downgradeXtoO()};
         ptr = nullptr;
-        guard_x_count.fetch_sub(1, std::memory_order::relaxed);
         return other;
     }
 
     static GuardX alloc() {
         GuardX r;
         r.ptr = reinterpret_cast<T *>(bm.allocPage());
-        guard_x_count.fetch_add(1, std::memory_order::relaxed);
         return r;
     }
 
@@ -535,7 +529,6 @@ struct GuardX {
     GuardX &operator=(GuardX &&other) {
         if (ptr) {
             bm.unfixX(pid());
-            guard_x_count.fetch_sub(1, std::memory_order::relaxed);
         }
         ptr = other.ptr;
         other.ptr = nullptr;
@@ -548,7 +541,6 @@ struct GuardX {
     // destructor
     ~GuardX() {
         if (ptr) {
-            guard_x_count.fetch_sub(1, std::memory_order::relaxed);
             bm.unfixX(pid());
         }
     }
@@ -561,7 +553,6 @@ struct GuardX {
     void release() {
         if (ptr) {
             bm.unfixX(pid());
-            guard_x_count.fetch_sub(1, std::memory_order::relaxed);
             ptr = nullptr;
         }
     }
