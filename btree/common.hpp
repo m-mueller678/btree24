@@ -73,3 +73,9 @@ do{                                         \
     }\
 }while(0);
 #endif //BTREE24_COMMON_HPP
+
+inline uint64_t envOr(const char *env, uint64_t value) {
+    if (getenv(env))
+        return atof(getenv(env));
+    return value;
+}

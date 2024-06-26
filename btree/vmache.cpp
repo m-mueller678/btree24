@@ -11,12 +11,6 @@ void *allocHuge(size_t size) {
     return p;
 }
 
-static u64 envOr(const char *env, u64 value) {
-    if (getenv(env))
-        return atof(getenv(env));
-    return value;
-}
-
 BufferManager bm;
 
 BufferManager::BufferManager() : virtSize(envOr("VIRTGB", 16) * gb), physSize(envOr("PHYSGB", 4) * gb),
