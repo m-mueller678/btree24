@@ -239,8 +239,10 @@ struct BTreeCppPerfEventBlock {
                                                                                                          &ds) { e.startCounters(); }
 
     void pushNodeCounts() {
-        if (getenv("SKIP_NODE_COUNT"))
+        push("vmCacheAllocCount", std::to_string(bm.allocCount));
+        if (getenv("SKIP_NODE_COUNT")) {
             return;
+        }
         std::array<uint32_t, TAG_END + 2> counts;
         counts.fill(0);
 #if defined(USE_STRUCTURE_BTREE)
