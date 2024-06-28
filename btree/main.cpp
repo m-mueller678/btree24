@@ -796,7 +796,8 @@ int main(int argc, char *argv[]) {
         } else {
             std::cerr << "loading strings" << std::endl;
             data_id = 2;
-            data = zipfc_load_keys(ZIPFC_RNG, keySet.c_str(), keyCount, intDensity, partition_count);
+            data = zipfc_load_keys(ZIPFC_RNG, keySet.c_str(), (keyCount + STRING_DIV - 1) / STRING_DIV, intDensity,
+                                   partition_count);
         }
         auto getKey = [&](uint64_t index, uint8_t *buffer) {
             // shuffle zipf distributed index to not prefer first keys
