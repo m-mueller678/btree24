@@ -788,7 +788,6 @@ int main(int argc, char *argv[]) {
         }
         constexpr unsigned STRING_DIV = 128;
         constexpr uint64_t SPARSE_PRIME = 1314734440756030799ull;
-        unsigned extraInsert = 0;
         unsigned data_id;
         if (keySet == "int") {
             data_id = 0;
@@ -797,8 +796,6 @@ int main(int argc, char *argv[]) {
         } else {
             std::cerr << "loading strings" << std::endl;
             data_id = 2;
-            keyCount /= STRING_DIV;
-            extraInsert = STRING_DIV - 1;
             data = zipfc_load_keys(ZIPFC_RNG, keySet.c_str(), keyCount, intDensity, partition_count);
         }
         auto getKey = [&](uint64_t index, uint8_t *buffer) {
