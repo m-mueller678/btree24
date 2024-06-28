@@ -202,15 +202,13 @@ static void runMulti(BTreeCppPerfEvent e,
 
 
 static void runMultiLarge(BTreeCppPerfEvent e,
-                          std::function<Key(uint64_t *)> data,
-                          std::function<void(uint64_t, Key)> replace_data,
+                          std::function<Key(uint64_t, uint8_t *)> data,
                           uint64_t keyCount,
                           unsigned payloadSize,
                           unsigned workDuration,
                           double zipfParameter,
                           unsigned maxScanLength,
-                          unsigned threadCount,
-                          uint8_t extraInserts = 0
+                          unsigned threadCount
 ) {
     constexpr unsigned index_samples = 1 << 25;
     uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
@@ -230,6 +228,7 @@ static void runMultiLarge(BTreeCppPerfEvent e,
         threads.emplace_back([&](unsigned tid) {
             setVmcacheWorkerThreadId(tid);
             uint8_t outBuffer[maxKvSize];
+            uint8_t keyBuffer[maxKvSize];
             unsigned threadIndexOffset = index_samples / threadCount * tid;
             unsigned local_ops_performed = 0;
             barrier.arrive_and_wait();
@@ -237,30 +236,16 @@ static void runMultiLarge(BTreeCppPerfEvent e,
             //insert
             for (uint64_t i = rangeStart(0, keyCount, threadCount, tid);
                  i < rangeStart(0, keyCount, threadCount, tid + 1); i++) {
-                uint64_t i_in = i;
-                Key key = data(&i_in);
-                if (extraInserts > 0) {
-                    for (unsigned j = 0; j <= extraInserts; ++j) {
-                        outBuffer[0] = j;
-                        memcpy(outBuffer + 1, key.data, key.len);
-                        t.insert({outBuffer, key.len + 1}, payload);
-                    }
-                    uint8_t *extendedKey = new uint8_t[key.len + 1];
-                    extendedKey[0] = i % (extraInserts + unsigned(1));
-                    memcpy(extendedKey + 1, key.data, key.len);
-                    replace_data(i, {extendedKey, key.len + 1});
-                } else {
-                    t.insert(key.span(), payload);
-                }
+                Key key = data(i, keyBuffer);
+                t.insert(key.span(), payload);
             }
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
             // ycsb-c
             while (keepWorking.load(std::memory_order::relaxed)) {
                 uint64_t keyIndex = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
-                uint64_t keyIndexIn = keyIndex;
                 assert(keyIndex < keyCount);
-                if (!t.lookup(data(&keyIndexIn).span())) {
+                if (!t.lookup(data(keyIndex, keyBuffer).span())) {
                     std::cout << "missing key " << keyIndex << std::endl;
                     abort();
                 }
@@ -275,7 +260,7 @@ static void runMultiLarge(BTreeCppPerfEvent e,
             // ycsb-e
             while (keepWorking.load(std::memory_order::relaxed)) {
                 uint64_t index = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
-                Key key = data(&index);
+                Key key = data(index, keyBuffer);
                 assert(index < keyCount);
                 unsigned scanLength = range_len_distribution(local_rng);
                 while (keepWorking.load(std::memory_order::relaxed)) {
@@ -301,7 +286,7 @@ static void runMultiLarge(BTreeCppPerfEvent e,
         barrier.arrive_and_wait();
         {
             e.setParam("op", "insert0");
-            BTreeCppPerfEventBlock b(e, t, keyCount * (extraInserts + 1));
+            BTreeCppPerfEventBlock b(e, t, keyCount);
             barrier.arrive_and_wait();
             // work
             barrier.arrive_and_wait();
@@ -415,7 +400,7 @@ static void runMixed(BTreeCppPerfEvent e,
                      unsigned rangeShare
 ) {
     if (insertShare + lookupShare + rangeShare != 8) {
-        std::cerr << "workload mix ddoes not add up to 8" << std::endl;
+        std::cerr << "workload mix does not add up to 8" << std::endl;
         abort();
     }
     constexpr unsigned index_samples = 1 << 25;
@@ -793,6 +778,14 @@ int main(int argc, char *argv[]) {
     }
     Key *data;
     if (ycsb_variant == 8) {
+        if (keyCount > 2000000000) {
+            std::cerr << "too many keys, key index shuffling might overflow";
+            abort();
+        }
+        if (keyCount % 128879 == 0) {
+            std::cerr << "unlucky key count" << std::endl;
+            abort();
+        }
         constexpr unsigned STRING_DIV = 128;
         constexpr uint64_t SPARSE_PRIME = 1314734440756030799ull;
         unsigned extraInsert = 0;
@@ -808,24 +801,28 @@ int main(int argc, char *argv[]) {
             extraInsert = STRING_DIV - 1;
             data = zipfc_load_keys(ZIPFC_RNG, keySet.c_str(), keyCount, intDensity, partition_count);
         }
-        if (keyCount % 128879 == 0) {
-            std::cerr << "unlucky key count" << std::endl;
-            abort();
-        }
-        auto getKey = [&](uint64_t *index) {
-            if (data_id < 2) {
-                *index = (128879 * (*index)) % keyCount;
-                *index = __builtin_bswap64((data_id == 0) ? (*index) : (*index * SPARSE_PRIME));
-                return Key{reinterpret_cast<uint8_t *>(index), 8};
+        auto getKey = [&](uint64_t index, uint8_t *buffer) {
+            // shuffle zipf distributed index to not prefer first keys
+            index = ((3 * index + 128879) * index) % keyCount;
+            if (data_id <= 1) {
+                // turn dense integer into sparse
+                if (data_id == 1) {
+                    index = index *
+                            SPARSE_PRIME; // this overflows, but 2^64 is coprime to SPARSE_PRIME, so we get decent shuffling
+                }
+                index = __builtin_bswap64(index);
+                memcpy(buffer, &index, 8);
+                return Key{buffer, 8};
             } else {
-                return data[*index];
+                uint8_t first_byte = index % STRING_DIV;
+                uint64_t string_index = index / STRING_DIV;
+                buffer[0] = first_byte;
+                Key &string_key = data[string_index];
+                memcpy(buffer + 1, string_key.data, string_key.len);
+                return Key{buffer, string_key.len + 1};
             }
         };
-        auto setKey = [&](uint64_t i, Key k) {
-            data[i] = k;
-        };
-        runMultiLarge(e, getKey, setKey, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount,
-                      extraInsert);
+        runMultiLarge(e, getKey, keyCount, payloadSize, duration, zipfParameter, maxScanLength, threadCount);
         return 0;
     }
     data = zipfc_load_keys(ZIPFC_RNG, keySet.c_str(), keyCount, intDensity, partition_count);
