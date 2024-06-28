@@ -8,6 +8,7 @@
 #include <cstring>
 #include <mutex>
 #include <atomic>
+#include <cstdlib>
 
 #define ASSUME(x) do{assert(x); if (!(x)) __builtin_unreachable();}while(0)
 
