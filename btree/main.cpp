@@ -301,7 +301,7 @@ static void runMultiLarge(BTreeCppPerfEvent e,
         barrier.arrive_and_wait();
         {
             e.setParam("op", "insert0");
-            BTreeCppPerfEventBlock b(e, t, keyCount);
+            BTreeCppPerfEventBlock b(e, t, keyCount * (extraInserts + 1));
             barrier.arrive_and_wait();
             // work
             barrier.arrive_and_wait();
