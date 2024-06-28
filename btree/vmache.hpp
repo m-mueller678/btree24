@@ -45,7 +45,7 @@ struct alignas(pageSize) Page {
     TagAndDirty tagAndDirty;
 };
 
-static const int16_t maxWorkerThreads = 1024;
+static const int16_t maxWorkerThreads = 257;
 
 #define die(msg) do { perror(msg); exit(EXIT_FAILURE); } while(0)
 
