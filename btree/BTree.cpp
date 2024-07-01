@@ -165,10 +165,12 @@ void BTree::lookupImpl(std::span<uint8_t> key, std::function<void(std::span<uint
 
 void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
                              const std::function<bool(unsigned int, std::span<uint8_t>)> &found_record_cb) {
-    std::array<GuardO<AnyNode>, 8> leafGuards = {GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
+    std::array<GuardO<AnyNode>, 10> leafGuards = {GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
                                                  GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
                                                  GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
-                                                 GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),};
+                                                  GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
+                                                  GuardO<AnyNode>::released(), GuardO<AnyNode>::released(),
+    };
     unsigned lockedLeaves = 0;
     std::span<uint8_t> leafKey = key;
     memcpy(keyOutBuffer, key.data(), key.size());
@@ -181,7 +183,7 @@ void BTree::range_lookupImpl(std::span<uint8_t> key, uint8_t *keyOutBuffer,
             node = GuardO<AnyNode>(parent->lookupInner(key), parent);
         }
         parent.release();
-        if (lockedLeaves >= sizeof(leafGuards) / sizeof(leafGuards[0])) {
+        if (lockedLeaves >= leafGuards.size()) {
             abort();
         }
         while (true) {
