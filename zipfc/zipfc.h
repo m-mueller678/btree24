@@ -6,6 +6,7 @@
 extern "C" {
 
 struct ZipfcRng;
+struct ZipfPermutation;
 
 struct Key {
     uint8_t *data;
@@ -28,10 +29,10 @@ uint32_t *generate_zipf_indices(
 );
 
 void fill_u64_single_thread(ZipfcRng *rng, uint64_t *data, uint64_t count);
+
+ZipfPermutation *create_zipf_permutation(ZipfcRng *rng, uint32_t count, double zipf);
+void fill_zipf_single_thread(ZipfcRng *rng, ZipfPermutation *dist, uint32_t *dst, uint64_t count);
+
 }
-
-
-void fill_u64_single_thread_range(ZipfcRng *rng, uint64_t *data, uint64_t count, uint64_t min, uint64_t max);
-
 
 #endif //BTREE24_ZIPFC_H

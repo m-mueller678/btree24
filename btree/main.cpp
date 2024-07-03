@@ -210,9 +210,8 @@ static void runMultiLarge(BTreeCppPerfEvent e,
                           unsigned maxScanLength,
                           unsigned threadCount
 ) {
-    constexpr unsigned index_samples = 1 << 25;
-    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
-
+    constexpr uint64_t index_samples = 1ull << 31;
+    ZipfPermutation *zipfP = create_zipf_permutation(ZIPFC_RNG, keyCount, zipfParameter);
     uint8_t *payloadPtr = makePayload(payloadSize);
     std::span payload{payloadPtr, payloadSize};
     std::atomic_bool keepWorking = true;
@@ -227,10 +226,21 @@ static void runMultiLarge(BTreeCppPerfEvent e,
         // Start a thread and execute threadFunction with the thread ID as argument
         threads.emplace_back([&](unsigned tid) {
             setVmcacheWorkerThreadId(tid);
+            auto local_zipf_rng = create_zipfc_rng(0, tid, "thread_rng");
+            std::array<uint32_t, 4096> zipfIndices;
+            unsigned nextZipfIndex = zipfIndices.size();
             uint8_t outBuffer[maxKvSize];
             uint8_t keyBuffer[maxKvSize];
             unsigned threadIndexOffset = index_samples / threadCount * tid;
             unsigned local_ops_performed = 0;
+            auto getZipfIndex = [&]() {
+                if (nextZipfIndex == zipfIndices.size()) {
+                    fill_zipf_single_thread(local_zipf_rng, zipfP, zipfIndices.data(), zipfIndices.size());
+                    nextZipfIndex = 0;
+                }
+                nextZipfIndex += 1;
+                return zipfIndices[nextZipfIndex];
+            };
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
             //insert
@@ -800,8 +810,6 @@ int main(int argc, char *argv[]) {
                                    partition_count);
         }
         auto getKey = [&](uint64_t index, uint8_t *buffer) {
-            // shuffle zipf distributed index to not prefer first keys
-            index = ((3 * index + 128879) * index) % keyCount;
             if (data_id <= 1) {
                 // turn dense integer into sparse
                 if (data_id == 1) {

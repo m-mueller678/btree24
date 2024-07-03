@@ -123,6 +123,11 @@ pub unsafe extern "C" fn zipfc_load_keys(
     keys.leak().as_ptr()
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn hash_u64(x:u64)->u64{
+    rand_hash(&x)
+}
+
 fn load_file_keys(count: u32, rng: &mut MainRng, path: &str) -> Vec<Key> {
     let mut lines: Vec<Key> = BufReader::new(File::open(path).unwrap())
         .lines()
@@ -299,7 +304,7 @@ pub unsafe extern "C" fn generate_zipf_indices(
     rng: *mut MainRng,
     key_count: u32,
     zipf_parameter: f64,
-    count: u32,
+    count: u64,
 ) -> *const u32 {
     init_rayon();
     let rng = &mut *rng;
@@ -311,7 +316,6 @@ pub unsafe extern "C" fn generate_zipf_indices(
         zipf_parameter,
     );
     out.set_len(count as usize);
-    //dbg!(&out);
     out.leak().as_ptr()
 }
 
@@ -373,4 +377,39 @@ fn fill_zipf(rng: &mut Xoshiro256StarStar, dst: &mut [MaybeUninit<u32>], key_cou
             d.write(x);
         }
     });
+}
+
+pub struct ZipfPermutationGenerator{
+    permutation:Vec<u32>,
+    dist:ZipfDistribution,
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn create_zipf_permutation(
+    rng: *mut MainRng,
+    count: u32,
+    zipf: f64,
+)->*const ZipfPermutationGenerator {
+    let rng = &mut *rng;
+    let mut permutation: Vec<u32> = (0..count as u32).into_par_iter().collect();
+    permutation.par_shuffle(rng);
+    let dist=ZipfDistribution::new(count as usize, zipf).unwrap();
+    Box::leak(Box::new(ZipfPermutationGenerator{permutation,dist}))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fill_zipf_single_thread(
+    rng: *mut MainRng,
+    dist: *const ZipfPermutationGenerator,
+    dst: *mut u32,
+    count: u64
+){
+    let rng = &mut *rng;
+    let dist = &*dist;
+    {
+        let dst = from_raw_parts_mut(dst as *mut MaybeUninit<u32>, count as usize);
+        for d in dst{
+            d.write(dist.permutation[dist.dist.sample(rng) - 1]);
+        }
+    }
 }
