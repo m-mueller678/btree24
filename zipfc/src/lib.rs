@@ -3,7 +3,9 @@
 use rand::distributions::Uniform;
 use rand::prelude::*;
 use rand::Fill;
+use rand_distr::Geometric;
 use rand_xoshiro::Xoshiro256StarStar;
+use random_word::Lang;
 use rayon::prelude::*;
 use rip_shuffle::RipShuffleParallel;
 use std::collections::hash_map::DefaultHasher;
@@ -17,8 +19,6 @@ use std::mem::{size_of, MaybeUninit};
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering::Relaxed;
-use rand_distr::Geometric;
-use random_word::Lang;
 use zipf::ZipfDistribution;
 
 unsafe impl Send for Key {}
@@ -36,7 +36,8 @@ fn init_rayon() {
     if !INIT.swap(true, Relaxed) {
         rayon::ThreadPoolBuilder::new()
             .thread_name(|i| format!("rayon worker {i}"))
-            .build_global().unwrap()
+            .build_global()
+            .unwrap()
     }
 }
 
@@ -103,16 +104,19 @@ pub unsafe extern "C" fn zipfc_load_keys(
         }
         "test" => generate_test(count, rng),
         x => {
-            if let Some(mix_path)=x.strip_prefix("mix:"){
-                let mut k:Vec<Key>=[
+            if let Some(mix_path) = x.strip_prefix("mix:") {
+                let mut k: Vec<Key> = [
                     generate_parallel::<u32>(count / 4, rng),
                     load_file_keys(count / 4, rng, &format!("{mix_path}/urls-short")),
                     load_file_keys(count / 4, rng, &format!("{mix_path}/wiki")),
-                    gen_int_keys(count - count / 4*3, int_density, rng),
-                ].into_iter().flatten().collect();
+                    gen_int_keys(count - count / 4 * 3, int_density, rng),
+                ]
+                .into_iter()
+                .flatten()
+                .collect();
                 k.par_shuffle(rng);
                 k
-            }else{
+            } else {
                 let path = x.strip_prefix("file:").expect("bad key set name");
                 load_file_keys(count, rng, path)
             }
@@ -124,7 +128,7 @@ pub unsafe extern "C" fn zipfc_load_keys(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn hash_u64(x:u64)->u64{
+pub unsafe extern "C" fn hash_u64(x: u64) -> u64 {
     rand_hash(&x)
 }
 
@@ -165,43 +169,43 @@ fn generate_test(count: u32, rng: &mut MainRng) -> Vec<Key> {
     let segment_count_dist = Uniform::new(8, 12);
     let segment_choice_dist = Geometric::new(0.08).unwrap();
     let sequential_step_dist = Geometric::new(0.7).unwrap();
-    let generate_one = |r: &mut MainRng, sequential: &mut u64| {
-        match key_type_dist.sample(r) {
-            0 => {
-                let len = rand_key_len.sample(r);
-                let mut k = vec![0u8; len];
-                r.fill_bytes(&mut k);
-                k
-            }
-            1 => {
-                let len = bin_key_len.sample(r);
-                let mut k = vec![0u8; len];
-                for x in &mut k {
-                    *x = if r.gen() { b'1' } else { b'0' };
-                }
-                k
-            }
-            2 => {
-                let mut key = Vec::new();
-                let mut segment_seed = path_seed;
-                let segment_count = segment_count_dist.sample(r);
-                for _ in 0..segment_count {
-                    if !key.is_empty() {
-                        key.push(b'/');
-                    }
-                    let choices = 2 + segment_choice_dist.sample(&mut MainRng::seed_from_u64(segment_seed));
-                    let word_id = rand_hash(&(segment_seed, r.gen::<u64>() % choices)) as usize % words.len();
-                    segment_seed = rand_hash(&(word_id as u64, segment_seed));
-                    key.extend_from_slice(words[word_id].as_bytes())
-                }
-                key
-            }
-            3 => {
-                *sequential += sequential_step_dist.sample(r) + 1;
-                sequential.to_be_bytes().to_vec()
-            }
-            _ => unreachable!()
+    let generate_one = |r: &mut MainRng, sequential: &mut u64| match key_type_dist.sample(r) {
+        0 => {
+            let len = rand_key_len.sample(r);
+            let mut k = vec![0u8; len];
+            r.fill_bytes(&mut k);
+            k
         }
+        1 => {
+            let len = bin_key_len.sample(r);
+            let mut k = vec![0u8; len];
+            for x in &mut k {
+                *x = if r.gen() { b'1' } else { b'0' };
+            }
+            k
+        }
+        2 => {
+            let mut key = Vec::new();
+            let mut segment_seed = path_seed;
+            let segment_count = segment_count_dist.sample(r);
+            for _ in 0..segment_count {
+                if !key.is_empty() {
+                    key.push(b'/');
+                }
+                let choices =
+                    2 + segment_choice_dist.sample(&mut MainRng::seed_from_u64(segment_seed));
+                let word_id =
+                    rand_hash(&(segment_seed, r.gen::<u64>() % choices)) as usize % words.len();
+                segment_seed = rand_hash(&(word_id as u64, segment_seed));
+                key.extend_from_slice(words[word_id].as_bytes())
+            }
+            key
+        }
+        3 => {
+            *sequential += sequential_step_dist.sample(r) + 1;
+            sequential.to_be_bytes().to_vec()
+        }
+        _ => unreachable!(),
     };
 
     let mut out = vec![Vec::new(); count as usize];
@@ -230,17 +234,15 @@ fn generate_test(count: u32, rng: &mut MainRng) -> Vec<Key> {
         out.extend(new_candidates);
     }
     out.par_sort();
-    let out = out.into_par_iter()
-        .map(Key::from_vec)
-        .collect();
+    let out = out.into_par_iter().map(Key::from_vec).collect();
     out
 }
 
 fn generate_parallel<T>(count: u32, rng: &mut MainRng) -> Vec<Key>
-    where
-        [T]: Fill,
-        T: From<u8> + Clone + Send + Sync + Ord + Hash,
-        rand::distributions::Standard: rand::distributions::Distribution<T>,
+where
+    [T]: Fill,
+    T: From<u8> + Clone + Send + Sync + Ord + Hash,
+    rand::distributions::Standard: rand::distributions::Distribution<T>,
 {
     let mut out = vec![T::from(0); count as usize];
     let chunks: Vec<(&mut [T], MainRng)> = out
@@ -270,7 +272,7 @@ fn generate_parallel<T>(count: u32, rng: &mut MainRng) -> Vec<Key>
         .collect()
 }
 
-fn rng_stream(rng: &mut MainRng) -> impl Iterator<Item=MainRng> + '_ {
+fn rng_stream(rng: &mut MainRng) -> impl Iterator<Item = MainRng> + '_ {
     std::iter::repeat_with(|| {
         let x = rng.clone();
         rng.jump();
@@ -320,11 +322,7 @@ pub unsafe extern "C" fn generate_zipf_indices(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn fill_u64_single_thread(
-    rng: *mut MainRng,
-    data: *mut u64,
-    count: u64,
-) {
+pub unsafe extern "C" fn fill_u64_single_thread(rng: *mut MainRng, data: *mut u64, count: u64) {
     let rng = &mut *rng;
     {
         let dst = from_raw_parts_mut(data as *mut MaybeUninit<u64>, count as usize);
@@ -334,20 +332,19 @@ pub unsafe extern "C" fn fill_u64_single_thread(
     rng.fill(dst);
 }
 
-
 #[no_mangle]
 pub unsafe extern "C" fn fill_u64_single_thread_range(
     rng: *mut MainRng,
     data: *mut u64,
     count: u64,
-    min:u64,
-    max:u64,
+    min: u64,
+    max: u64,
 ) {
     let rng = &mut *rng;
-    let dist = Uniform::new(min,max.checked_add(1).unwrap());
+    let dist = Uniform::new(min, max.checked_add(1).unwrap());
     {
         let dst = from_raw_parts_mut(data as *mut MaybeUninit<u64>, count as usize);
-        for d in dst{
+        for d in dst {
             d.write(dist.sample(rng));
         }
     }
@@ -379,9 +376,9 @@ fn fill_zipf(rng: &mut Xoshiro256StarStar, dst: &mut [MaybeUninit<u32>], key_cou
     });
 }
 
-pub struct ZipfPermutationGenerator{
-    permutation:Vec<u32>,
-    dist:ZipfDistribution,
+pub struct ZipfPermutationGenerator {
+    permutation: Vec<u32>,
+    dist: ZipfDistribution,
 }
 
 #[no_mangle]
@@ -389,12 +386,12 @@ pub unsafe extern "C" fn create_zipf_permutation(
     rng: *mut MainRng,
     count: u32,
     zipf: f64,
-)->*const ZipfPermutationGenerator {
+) -> *const ZipfPermutationGenerator {
     let rng = &mut *rng;
     let mut permutation: Vec<u32> = (0..count as u32).into_par_iter().collect();
     permutation.par_shuffle(rng);
-    let dist=ZipfDistribution::new(count as usize, zipf).unwrap();
-    Box::leak(Box::new(ZipfPermutationGenerator{permutation,dist}))
+    let dist = ZipfDistribution::new(count as usize, zipf).unwrap();
+    Box::leak(Box::new(ZipfPermutationGenerator { permutation, dist }))
 }
 
 #[no_mangle]
@@ -402,13 +399,13 @@ pub unsafe extern "C" fn fill_zipf_single_thread(
     rng: *mut MainRng,
     dist: *const ZipfPermutationGenerator,
     dst: *mut u32,
-    count: u64
-){
+    count: u64,
+) {
     let rng = &mut *rng;
     let dist = &*dist;
     {
         let dst = from_raw_parts_mut(dst as *mut MaybeUninit<u32>, count as usize);
-        for d in dst{
+        for d in dst {
             d.write(dist.permutation[dist.dist.sample(rng) - 1]);
         }
     }

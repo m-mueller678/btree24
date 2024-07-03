@@ -231,15 +231,15 @@ static void runMultiLarge(BTreeCppPerfEvent e,
             unsigned nextZipfIndex = zipfIndices.size();
             uint8_t outBuffer[maxKvSize];
             uint8_t keyBuffer[maxKvSize];
-            unsigned threadIndexOffset = index_samples / threadCount * tid;
             unsigned local_ops_performed = 0;
             auto getZipfIndex = [&]() {
                 if (nextZipfIndex == zipfIndices.size()) {
                     fill_zipf_single_thread(local_zipf_rng, zipfP, zipfIndices.data(), zipfIndices.size());
                     nextZipfIndex = 0;
                 }
+                uint32_t ret = zipfIndices[nextZipfIndex];
                 nextZipfIndex += 1;
-                return zipfIndices[nextZipfIndex];
+                return ret;
             };
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
@@ -253,7 +253,7 @@ static void runMultiLarge(BTreeCppPerfEvent e,
             barrier.arrive_and_wait();
             // ycsb-c
             while (keepWorking.load(std::memory_order::relaxed)) {
-                uint64_t keyIndex = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
+                uint64_t keyIndex = getZipfIndex();
                 assert(keyIndex < keyCount);
                 if (!t.lookup(data(keyIndex, keyBuffer).span())) {
                     std::cout << "missing key " << keyIndex << std::endl;
@@ -269,7 +269,7 @@ static void runMultiLarge(BTreeCppPerfEvent e,
             barrier.arrive_and_wait();
             // ycsb-e
             while (keepWorking.load(std::memory_order::relaxed)) {
-                uint64_t index = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
+                uint64_t index = getZipfIndex();
                 Key key = data(index, keyBuffer);
                 assert(index < keyCount);
                 unsigned scanLength = range_len_distribution(local_rng);
