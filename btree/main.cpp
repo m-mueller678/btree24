@@ -210,7 +210,8 @@ static void runMultiLarge(BTreeCppPerfEvent e,
                           unsigned maxScanLength,
                           unsigned threadCount
 ) {
-    bool skipScan = getenv("SKIP_SCAN");
+    u64 scanDuration = envOr("SCAN_DURATION", workDuration);
+    u64 writeSleep = envOr("WRITE_SLEEP", 0);
     constexpr uint64_t index_samples = 1ull << 31;
     ZipfPermutation *zipfP = create_zipf_permutation(ZIPFC_RNG, keyCount, zipfParameter);
     uint8_t *payloadPtr = makePayload(payloadSize);
@@ -304,6 +305,7 @@ static void runMultiLarge(BTreeCppPerfEvent e,
         }
         ops_performed.store(0);
         {
+            sleep(writeSleep);
             e.setParam("op", "ycsb_c");
             BTreeCppPerfEventBlock b(e, t, 1);
             barrier.arrive_and_wait();
@@ -320,7 +322,7 @@ static void runMultiLarge(BTreeCppPerfEvent e,
             BTreeCppPerfEventBlock b(e, t, 1);
             barrier.arrive_and_wait();
             //work
-            sleep(skipScan ? 0 : workDuration);
+            sleep(scanDuration);
             keepWorking.store(false, std::memory_order::relaxed);
             barrier.arrive_and_wait();
             keepWorking.store(true, std::memory_order::relaxed);
