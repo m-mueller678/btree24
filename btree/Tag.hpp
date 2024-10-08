@@ -22,6 +22,9 @@ constexpr unsigned TAG_END = unsigned(Tag::_last) + 1;
 
 const char *tag_name(Tag tag);
 
+struct ContentionSplitException {
+};
+
 struct RangeOpCounter {
     std::atomic<uint8_t> count;
     static constexpr uint8_t MAX_COUNT = 3;
@@ -83,6 +86,12 @@ private:
 public:
     static constexpr uint32_t CONTENTION_INC_THRESHOLD = (std::minstd_rand::max() + 1) / 16.0;
     static constexpr uint32_t CONTENTION_LIMIT = 32;
+
+public
+
+    std::uint16_t getContentionLastUpdatePos() {
+        return contentionLastUpdatePos;
+    }
 
     bool contentionSplit(bool contended, uint16_t write_pos);
 

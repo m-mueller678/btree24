@@ -38,7 +38,9 @@ BTree::BTree(bool isInt) {
 
 void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
     assert((key.size() + payload.size()) <= BTreeNode::maxKVSize);
+    AnyNode *contended = nullptr;
     while (true) {
+        AnyNode *leafNode = nullptr;
         try {
             GuardO<AnyNode> parent{metadataPid};
             GuardO<AnyNode> node(reinterpret_cast<MetaDataPage *>(parent.ptr)->root, parent);
@@ -49,6 +51,7 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
             }
 
             parent.checkVersionAndRestart();
+            leafNode = node.ptr;
             GuardX<AnyNode> nodeLocked{std::move(node)};
             while (true) {
                 switch (nodeLocked->tag()) {
@@ -72,8 +75,22 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
                         if (nodeLocked->hash()->rangeOpCounter.shouldConvertBasic() &&
                             nodeLocked->hash()->tryConvertToBasic())
                             continue;
-                        if (nodeLocked->hash()->insert(key, payload)) {
-                            parent.release_ignore();
+                        int writeIndex = 0;
+                        if (nodeLocked->hash()->insert(key, payload, &writeIndex)) {
+                            if (nodeLocked->_tag_and_dirty.contentionSplit(contended == nodeLocked.ptr, writeIndex)) {
+                                std::cout << "contentionSplit" << std::endl;;
+                                try {
+                                    GuardX<AnyNode> parentLocked{std::move(parent)};
+                                    bool ok = nodeLocked->hash()->contentionSplit(parent.ptr);
+                                    if (!ok) {
+                                        std::cout << "contention split parent full" << std::endl;
+                                    }
+                                } catch (OLCRestartException) {
+                                    std::cout << "contention split parent contention" << std::endl;
+                                }
+                            } else {
+                                parent.release_ignore();
+                            }
                             return;
                         }
                         break;
@@ -87,7 +104,10 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
             GuardX<AnyNode> parentLocked{std::move(parent)};
             trySplit(std::move(nodeLocked), std::move(parentLocked), key);
             // insert hasn't happened, restart from root
-        } catch (const OLCRestartException &) { vmcache_yield(); }
+        } catch (const OLCRestartException &) {
+            if (leafNode)contended = leafNode;
+            vmcache_yield();
+        }
     }
 }
 

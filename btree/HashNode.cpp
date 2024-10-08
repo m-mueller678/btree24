@@ -76,7 +76,7 @@ uint8_t *HashNode::ptr() {
     return reinterpret_cast<uint8_t *>(this);
 }
 
-bool HashNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
+bool HashNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload, int *indexOut) {
     rangeOpCounter.point_op();
     assert(freeSpace() < pageSizeLeaf);
     ASSUME(key.size() >= prefixLength);
@@ -96,6 +96,7 @@ bool HashNode::insert(std::span<uint8_t> key, std::span<uint8_t> payload) {
     }
     assert(freeSpace() < pageSizeLeaf);
     validate();
+    *indexOut = index;
     return true;
 }
 
@@ -338,6 +339,26 @@ SeparatorInfo HashNode::findSeparator() {
 }
 
 
+// might be off by one sometimes
+SeparatorInfo HashNode::makeSeparatorAt(unsigned lowCount) {
+    auto k1 = getKey(lowCount - 1);
+    auto k2 = getKey(lowCount);
+    unsigned sepLen = 0;
+    while (true) {
+        if (sepLen == k1.size()) {
+            return SeparatorInfo{prefixLength + sepLen + 1, lowCount, sepLen + 1 < k2.size()};
+        }
+        if (k1[sepLen] == k2[sepLen]) { sepLen += 1; }
+        else {
+            if (k1.size() == sepLen + 1)
+                return SeparatorInfo{prefixLength + sepLen + 1, lowCount - 1, false};
+            else
+                return SeparatorInfo{prefixLength + sepLen + 1, lowCount, k2.size() < sepLen};
+        }
+    }
+}
+
+
 void HashNode::copyKeyValue(unsigned srcSlot, HashNode *dst, unsigned dstSlot) {
     unsigned fullLength = slot[srcSlot].keyLen + prefixLength;
     uint8_t buffer[fullLength];
@@ -508,5 +529,34 @@ bool HashNode::tryConvertToBasic() {
     copyKeyValueRangeToBasic(&tmp, 0, 0, count);
     memcpy(this, &tmp, pageSizeLeaf);
     return true;
+}
+
+bool HashNode::contentionSplit(AnyNode *parent) {
+    int hotKeyOffset = slot[getContentionLastUpdatePos()].offset;
+    sort();
+    unsigned hotKeyIndex = count;
+    for (unsigned i = 0; i < count; ++i) {
+        if (slot[i].offset == hotKeyOffset) {
+            hotKeyIndex = i;
+            break;
+        }
+    }
+    if (hotKeyIndex == count) {
+        abort();
+    }
+    unsigned splitAt = (count / 2 + hotKeyIndex) / 2;
+    if (splitAt == 0)
+        splitAt = 1;
+    unsigned sepLen = 0;
+    SeparatorInfo sepInfo = makeSeparatorAt(splitAt);
+    if (parent->innerRequestSpaceFor(
+            sepInfo.length)) {  // is there enough space in the parent for the separator?
+        uint8_t sepKey[sepInfo.length];
+        getSep(sepKey, sepInfo);
+        splitNode(parent, sepInfo.slot, {sepKey, sepInfo.length});
+        return true;
+    } else {
+        return false;
+    }
 }
 

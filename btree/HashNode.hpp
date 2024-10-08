@@ -62,7 +62,7 @@ struct HashNode : public HashNodeHeader {
 
     void updatePrefixLength();
 
-    bool insert(std::span<uint8_t> key, std::span<uint8_t> payload);
+    bool insert(std::span<uint8_t> key, std::span<uint8_t> payload, int *indexOut);
 
     int findIndex(std::span<uint8_t> key, uint8_t hash);
 
@@ -82,6 +82,8 @@ struct HashNode : public HashNodeHeader {
     unsigned int commonPrefix(unsigned int slotA, unsigned int slotB);
 
     SeparatorInfo findSeparator();
+
+    SeparatorInfo HashNode::makeSeparatorAt(unsigned lowCount);
 
     void getSep(uint8_t *sepKeyOut, SeparatorInfo info);
 
@@ -127,6 +129,8 @@ struct HashNode : public HashNodeHeader {
     bool tryConvertToBasic();
 
     bool hasGoodHeads();
+
+    bool contentionSplit(AnyNode *parent);
 } __attribute__((aligned(hashSimdWidth)));
 
 #endif //BTREE24_HASHNODE_HPP
