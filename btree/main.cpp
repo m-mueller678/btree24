@@ -201,6 +201,151 @@ static void runMulti(BTreeCppPerfEvent e,
 }
 
 
+static void runContention(BTreeCppPerfEvent e, unsigned keyCount, double zipfParameter, unsigned payloadSize,
+                          unsigned threadCount) {
+    constexpr unsigned index_samples = 1 << 25;
+    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
+
+    uint8_t *payloadPtr = makePayload(payloadSize);
+    std::span payload{payloadPtr, payloadSize};
+    DataStructureWrapper t(isDataInt(e));
+
+    setVmcacheWorkerThreadId(threadCount);
+    std::vector<std::thread> threads;
+    std::barrier barrier{threadCount + 1};
+    for (int i = 0; i < threadCount; ++i) {
+        // Start a thread and execute threadFunction with the thread ID as argument
+        threads.emplace_back([&](unsigned tid) {
+            if (tid == 0) {
+                for (uint32_t k = 0; k < keyCount; ++k) {
+                    union {
+                        uint32_t k_be;
+                        uint8_t k_be_bytes[4];
+                    };
+                    k_be = __builtin_bswap32(k_be);
+                    t.insert({k_be_bytes, 4}, payload);
+                }
+            }
+            if (tid == 1 || threadCount == 1) {
+                std::map<unsigned, unsigned>
+            }
+            barrier.wait();
+
+            setVmcacheWorkerThreadId(tid);
+            uint8_t outBuffer[maxKvSize];
+            unsigned threadIndexOffset = index_samples / threadCount * tid;
+            unsigned local_ops_performed = 0;
+            if (preInsert) {
+                for (uint64_t i = rangeStart(0, preInsertCount, threadCount, tid);
+                     i < rangeStart(0, preInsertCount, threadCount, tid + 1); i++) {
+                    t.insert(data[i].span(), payload);
+                }
+            }
+            barrier.arrive_and_wait();
+            barrier.arrive_and_wait();
+            //insert
+            if (preInsert) {
+                for (uint64_t i = rangeStart(preInsertCount, keyCount, threadCount, tid);
+                     i < rangeStart(preInsertCount, keyCount, threadCount, tid + 1); i++) {
+                    t.insert(data[i].span(), payload);
+                }
+            } else {
+                for (uint64_t i = rangeStart(0, keyCount, threadCount, tid);
+                     i < rangeStart(0, keyCount, threadCount, tid + 1); i++) {
+                    t.insert(data[i].span(), payload);
+                }
+            }
+            barrier.arrive_and_wait();
+            barrier.arrive_and_wait();
+            // ycsb-c
+            while (keepWorking.load(std::memory_order::relaxed)) {
+                unsigned keyIndex = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
+                assert(keyIndex < keyCount);
+                if (!t.lookup(data[keyIndex].span())) {
+                    std::cout << "missing key " << keyIndex << std::endl;
+                    abort();
+                }
+                local_ops_performed += 1;
+            }
+            ops_performed += local_ops_performed;
+            barrier.arrive_and_wait();
+            local_ops_performed = 0;
+            std::minstd_rand local_rng(tid);
+            std::uniform_int_distribution range_len_distribution(unsigned(1), maxScanLength);
+            barrier.arrive_and_wait();
+            // ycsb-e
+            while (keepWorking.load(std::memory_order::relaxed)) {
+                unsigned index = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
+                assert(index < keyCount);
+                unsigned scanLength = range_len_distribution(local_rng);
+                while (keepWorking.load(std::memory_order::relaxed)) {
+                    unsigned scanCount = 0;
+                    try {
+                        t.range_lookup(data[index].span(), outBuffer, [&](unsigned keyLen, std::span<uint8_t> payload) {
+                            scanCount += 1;
+                            return scanCount < scanLength;
+                        });
+                        local_ops_performed += 1;
+                        break;
+                    } catch (OLCRestartException e) {
+                        continue;
+                    }
+                }
+            }
+            ops_performed += local_ops_performed;
+            barrier.arrive_and_wait();
+        }, i);
+    }
+    {
+        //pre insert
+        barrier.arrive_and_wait();
+        if (preInsert) {
+            e.setParam("op", "insert90");
+            BTreeCppPerfEventBlock b(e, t, keyCount - preInsertCount);
+            barrier.arrive_and_wait();
+            // work
+            barrier.arrive_and_wait();
+        } else {
+            e.setParam("op", "insert0");
+            BTreeCppPerfEventBlock b(e, t, keyCount);
+            barrier.arrive_and_wait();
+            // work
+            barrier.arrive_and_wait();
+        }
+        ops_performed.store(0);
+        {
+            e.setParam("op", "ycsb_c");
+            BTreeCppPerfEventBlock b(e, t, 1);
+            barrier.arrive_and_wait();
+            // work
+            sleep(workDuration);
+            keepWorking.store(false, std::memory_order::relaxed);
+            barrier.arrive_and_wait();
+            keepWorking.store(true, std::memory_order::relaxed);
+            b.scale = ops_performed.load(std::memory_order::relaxed);
+        }
+        ops_performed.store(0);
+        {
+            e.setParam("op", "ycsb_e");
+            BTreeCppPerfEventBlock b(e, t, 1);
+            barrier.arrive_and_wait();
+            //work
+            sleep(workDuration);
+            keepWorking.store(false, std::memory_order::relaxed);
+            barrier.arrive_and_wait();
+            keepWorking.store(true, std::memory_order::relaxed);
+            b.scale = ops_performed.load(std::memory_order::relaxed);
+        }
+        ops_performed.store(0);
+    }
+
+    // Wait for all threads to complete
+    for (auto &thread: threads) {
+        thread.join();
+    }
+}
+
+
 static void runMultiLarge(BTreeCppPerfEvent e,
                           std::function<Key(uint64_t, uint8_t *)> data,
                           uint64_t keyCount,
@@ -790,6 +935,10 @@ int main(int argc, char *argv[]) {
         throw;
     }
     Key *data;
+    if (ycsb_variant == 9) {
+        runContention(e);
+        return 0;
+    }
     if (ycsb_variant == 8) {
         if (keyCount > 2000000000) {
             std::cerr << "too many keys, key index shuffling might overflow";

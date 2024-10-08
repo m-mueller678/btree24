@@ -77,6 +77,15 @@ private:
     uint8_t x;
 public:
     RangeOpCounter rangeOpCounter;
+private:
+    std::uint16_t contentionSlow;
+    std::uint16_t contentionTotal;
+    std::uint16_t contentionLastUpdate;
+public:
+    static constexpr uint32_t CONTENTION_SAMPLE_THRESHOLD = (std::minstd_rand::max() + 1) / 4.0;
+    static constexpr uint32_t CONTENTION_PERIOD_THRESHOLD = (std::minstd_rand::max() + 1) / 512.0;
+
+    bool contentionSplit(bool contended, uint16_t write_pos);
 
     TagAndDirty() {
         init(Tag::_last, RangeOpCounter{});
