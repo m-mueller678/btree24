@@ -78,12 +78,11 @@ private:
 public:
     RangeOpCounter rangeOpCounter;
 private:
-    std::uint16_t contentionSlow;
-    std::uint16_t contentionTotal;
-    std::uint16_t contentionLastUpdate;
+    std::uint16_t contentionCount;
+    std::uint16_t contentionLastUpdatePos;
 public:
-    static constexpr uint32_t CONTENTION_SAMPLE_THRESHOLD = (std::minstd_rand::max() + 1) / 4.0;
-    static constexpr uint32_t CONTENTION_PERIOD_THRESHOLD = (std::minstd_rand::max() + 1) / 512.0;
+    static constexpr uint32_t CONTENTION_INC_THRESHOLD = (std::minstd_rand::max() + 1) / 16.0;
+    static constexpr uint32_t CONTENTION_LIMIT = 32;
 
     bool contentionSplit(bool contended, uint16_t write_pos);
 
@@ -93,6 +92,8 @@ public:
 
     void init(Tag t, RangeOpCounter roc) {
         x = 128 | static_cast<uint8_t>(t);
+        contentionCount = 0;
+        contentionLastUpdatePos = 0;
         rangeOpCounter.init(roc.count.load(std::memory_order_relaxed));
     }
 

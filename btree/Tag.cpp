@@ -69,22 +69,16 @@ void RangeOpCounter::point_op() {
 }
 
 bool TagAndDirty::contentionSplit(bool contended, uint16_t write_pos) {
-    uint32_t r = rng();
-    if (r <= CONTENTION_SAMPLE_THRESHOLD) { // track updates
-        contentionTotal += 1;
-        contentionSlow += contended;
-        contentionLastUpdate = write_pos;
-    }
-    if (r <= CONTENTION_PERIOD_THRESHOLD) { // check for contention
-        float ratio = (float) (contentionSlow) / contentionTotal;
-        if (ratio == 1) { // contention detected
-            if (write_pos != lastUpdatePos) { // unnecessary contention
-                int splitPos = mid(pos, p.lastUpdatepos);
-                btree.splitNodeAtPos(p.pageContent, splitPos);
+    if (contended) {
+        if (rng() <= CONTENTION_INC_THRESHOLD) { // track updates
+            contentionCount += 1;
+            if (contentionCount >= CONTENTION_LIMIT) {
+                contentionCount = 0;
+                return contentionLastUpdatePos != write_pos;
             }
+            contentionLastUpdatePos = write_pos;
         }
-        p.lastUpdatedPos = -1; // period ends , reset counters
-        p.updatesCount = 0;
-        p.slowpathCount = 0;
+    } else {
+        contentionCount = 0;
     }
 }
