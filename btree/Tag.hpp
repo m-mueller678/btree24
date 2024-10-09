@@ -87,7 +87,7 @@ public:
     static constexpr uint32_t CONTENTION_INC_THRESHOLD = (std::minstd_rand::max() + 1) / 16.0;
     static constexpr uint32_t CONTENTION_LIMIT = 32;
 
-public
+public:
 
     std::uint16_t getContentionLastUpdatePos() {
         return contentionLastUpdatePos;

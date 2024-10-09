@@ -83,7 +83,7 @@ struct HashNode : public HashNodeHeader {
 
     SeparatorInfo findSeparator();
 
-    SeparatorInfo HashNode::makeSeparatorAt(unsigned lowCount);
+    SeparatorInfo makeSeparatorAt(unsigned lowCount);
 
     void getSep(uint8_t *sepKeyOut, SeparatorInfo info);
 
