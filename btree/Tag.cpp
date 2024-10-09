@@ -68,7 +68,7 @@ void RangeOpCounter::point_op() {
     }
 }
 
-bool TagAndDirty::contentionSplit(bool contended, uint16_t write_pos) {
+bool TagAndDirty::shouldContentionSplit(bool contended, uint16_t write_pos) {
     if (contended) {
         if (rng() <= CONTENTION_INC_THRESHOLD) { // track updates
             if (contentionCount >= CONTENTION_LIMIT) {

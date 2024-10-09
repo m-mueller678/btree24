@@ -93,7 +93,7 @@ public
         return contentionLastUpdatePos;
     }
 
-    bool contentionSplit(bool contended, uint16_t write_pos);
+    bool shouldContentionSplit(bool contended, uint16_t write_pos);
 
     TagAndDirty() {
         init(Tag::_last, RangeOpCounter{});

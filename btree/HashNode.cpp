@@ -547,7 +547,6 @@ bool HashNode::contentionSplit(AnyNode *parent) {
     unsigned splitAt = (count / 2 + hotKeyIndex) / 2;
     if (splitAt == 0)
         splitAt = 1;
-    unsigned sepLen = 0;
     SeparatorInfo sepInfo = makeSeparatorAt(splitAt);
     if (parent->innerRequestSpaceFor(
             sepInfo.length)) {  // is there enough space in the parent for the separator?
