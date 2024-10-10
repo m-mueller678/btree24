@@ -532,6 +532,7 @@ bool HashNode::tryConvertToBasic() {
 }
 
 bool HashNode::contentionSplit(AnyNode *parent) {
+#ifdef ENABLE_CONTENTION_SPLIT
     int hotKeyOffset = slot[getContentionLastUpdatePos()].offset;
     sort();
     unsigned hotKeyIndex = count;
@@ -557,5 +558,8 @@ bool HashNode::contentionSplit(AnyNode *parent) {
     } else {
         return false;
     }
+#else
+    return false;
+#endif
 }
 

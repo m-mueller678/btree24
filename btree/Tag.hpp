@@ -22,9 +22,6 @@ constexpr unsigned TAG_END = unsigned(Tag::_last) + 1;
 
 const char *tag_name(Tag tag);
 
-struct ContentionSplitException {
-};
-
 struct RangeOpCounter {
     std::atomic<uint8_t> count;
     static constexpr uint8_t MAX_COUNT = 3;
@@ -81,17 +78,20 @@ private:
 public:
     RangeOpCounter rangeOpCounter;
 private:
+#ifdef ENABLE_CONTENTION_SPLIT
     std::uint16_t contentionCount;
     std::uint16_t contentionLastUpdatePos;
+#endif
 public:
     static constexpr uint32_t CONTENTION_INC_THRESHOLD = (std::minstd_rand::max() + 1) / 16.0;
     static constexpr uint32_t CONTENTION_LIMIT = 32;
 
 public:
-
+#ifdef ENABLE_CONTENTION_SPLIT
     std::uint16_t getContentionLastUpdatePos() {
         return contentionLastUpdatePos;
     }
+#endif
 
     bool shouldContentionSplit(bool contended, uint16_t write_pos);
 
@@ -101,8 +101,10 @@ public:
 
     void init(Tag t, RangeOpCounter roc) {
         x = 128 | static_cast<uint8_t>(t);
+#ifdef ENABLE_CONTENTION_SPLIT
         contentionCount = 0;
         contentionLastUpdatePos = 0;
+#endif
         rangeOpCounter.init(roc.count.load(std::memory_order_relaxed));
     }
 
