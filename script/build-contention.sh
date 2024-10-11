@@ -2,7 +2,7 @@
 
 # Define the possible values for CONFIG and SIZE
 configs=("adapt" "contentionSplit")
-sizes=$(seq 9 14)
+sizes=$(seq 9 15)
 
 # Loop through all combinations of CONFIG and SIZE
 for config in "${configs[@]}"; do

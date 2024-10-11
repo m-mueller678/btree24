@@ -235,11 +235,12 @@ static void runContention(
             unsigned local_ops_performed = 0;
             barrier.arrive_and_wait();
             barrier.arrive_and_wait();
+            std::minstd_rand local_rng(tid);
+            std::uniform_int_distribution offset_distribution(unsigned(0), unsigned(127));
             while (keepWorking.load(std::memory_order::relaxed)) {
-                unsigned zipf_index = threadIndexOffset + local_ops_performed * 2;
-                unsigned zipf1 = zipfIndices[zipf_index % index_samples];
-                unsigned zipf2 = zipfIndices[(zipf_index + 1) % index_samples];
-                unsigned keyIndex = zipf1 + zipf2 % 64;
+                unsigned zipf1 = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
+                unsigned key_offset = offset_distribution(local_rng);
+                unsigned keyIndex = zipf1 + key_offset;
                 if (keyIndex >= keyCount)
                     keyIndex -= keyCount;
                 t.insert(data[keyIndex].span(), payload);
