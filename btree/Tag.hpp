@@ -72,6 +72,7 @@ struct RangeOpCounter {
 };
 
 #ifdef USE_STRUCTURE_BTREE
+
 struct TagAndDirty {
 private:
     uint8_t x;
@@ -79,12 +80,14 @@ public:
     RangeOpCounter rangeOpCounter;
 private:
 #ifdef ENABLE_CONTENTION_SPLIT
-    std::uint16_t contentionCount;
+    std::uint16_t contentionUpdate;
+    std::uint16_t contentionSlowUpdate;
     std::uint16_t contentionLastUpdatePos;
 #endif
 public:
-    static constexpr uint32_t CONTENTION_INC_THRESHOLD = (std::minstd_rand::max() + 1) / 16.0;
-    static constexpr uint32_t CONTENTION_LIMIT = 32;
+    static constexpr uint32_t CONTENTION_SAMPLE_THRESHOLD = (std::minstd_rand::max() + 1) / 32.0;
+    static constexpr uint32_t CONTENTION_PERIOD = 1 << 14;
+    static constexpr uint32_t CONTENTION_MIN_TO_SPLIT = CONTENTION_PERIOD / 5.0;
 
 public:
 #ifdef ENABLE_CONTENTION_SPLIT
@@ -102,7 +105,8 @@ public:
     void init(Tag t, RangeOpCounter roc) {
         x = 128 | static_cast<uint8_t>(t);
 #ifdef ENABLE_CONTENTION_SPLIT
-        contentionCount = 0;
+        contentionUpdate = 0;
+        contentionSlowUpdate = 0;
         contentionLastUpdatePos = 0;
 #endif
         rangeOpCounter.init(roc.count.load(std::memory_order_relaxed));

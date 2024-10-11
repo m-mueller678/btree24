@@ -70,21 +70,16 @@ void RangeOpCounter::point_op() {
 
 bool TagAndDirty::shouldContentionSplit(bool contended, uint16_t write_pos) {
 #ifdef ENABLE_CONTENTION_SPLIT
-    if (contended) {
-        if (rng() <= CONTENTION_INC_THRESHOLD) { // track updates
-            if (contentionCount >= CONTENTION_LIMIT) {
-                if (contentionLastUpdatePos == write_pos) {
-                    contentionCount = 0;
-                } else {
-                    return true;
-                }
-            } else {
-                contentionCount += 1;
-            }
-            contentionLastUpdatePos = write_pos;
+    if(rng()<CONTENTION_SAMPLE_THRESHOLD){
+        contentionUpdate+=1;
+        contentionSlowUpdate+=contended;
+        bool ret = contentionSlowUpdate >= CONTENTION_MIN_TO_SPLIT  && contentionLastUpdatePos!=write_pos;
+        contentionLastUpdatePos = write_pos;
+        if(contentionUpdate == CONTENTION_PERIOD){
+            contentionSlowUpdate=0;
+            contentionUpdate=0;
+            return ret;
         }
-    } else {
-        contentionCount = 0;
     }
 #endif
     return false;
