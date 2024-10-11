@@ -3,6 +3,7 @@
 
 #include<atomic>
 #include <random>
+#include <cstring>
 #include "config.hpp"
 
 
@@ -100,6 +101,10 @@ public:
 
     TagAndDirty() {
         init(Tag::_last, RangeOpCounter{});
+    }
+
+    void copyTagAndDirtyFrom(TagAndDirty *source) {
+        memcpy(reinterpret_cast<void *>(this), reinterpret_cast<void *>(source), sizeof(*this));
     }
 
     void init(Tag t, RangeOpCounter roc) {

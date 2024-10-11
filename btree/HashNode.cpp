@@ -240,6 +240,7 @@ void HashNode::compactify(unsigned newHashCapacity) {
     unsigned should = freeSpaceAfterCompaction() - newHashCapacity;
     HashNode tmp;
     tmp.init(getLowerFence(), getUpperFence(), newHashCapacity, rangeOpCounter);
+    tmp.copyTagAndDirtyFrom(this);
     tmp.count = count;
     copySpan(tmp.hashes(), hashes());
     memcpy(tmp.slot, slot, sizeof(HashSlot) * count);
