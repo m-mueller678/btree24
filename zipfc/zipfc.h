@@ -25,7 +25,8 @@ uint32_t *generate_zipf_indices(
         ZipfcRng *rng,
         uint32_t key_count,
         double zipf_parameter,
-        uint32_t sample_count
+        uint32_t sample_count,
+        bool shuffle
 );
 
 void fill_u64_single_thread(ZipfcRng *rng, uint64_t *data, uint64_t count);

@@ -307,6 +307,7 @@ pub unsafe extern "C" fn generate_zipf_indices(
     key_count: u32,
     zipf_parameter: f64,
     count: u64,
+    shuffle: bool,
 ) -> *const u32 {
     init_rayon();
     let rng = &mut *rng;
@@ -316,6 +317,7 @@ pub unsafe extern "C" fn generate_zipf_indices(
         &mut out.spare_capacity_mut()[..count as usize],
         key_count,
         zipf_parameter,
+        shuffle,
     );
     out.set_len(count as usize);
     out.leak().as_ptr()
@@ -350,7 +352,13 @@ pub unsafe extern "C" fn fill_u64_single_thread_range(
     }
 }
 
-fn fill_zipf(rng: &mut Xoshiro256StarStar, dst: &mut [MaybeUninit<u32>], key_count: u32, p: f64) {
+fn fill_zipf(
+    rng: &mut Xoshiro256StarStar,
+    dst: &mut [MaybeUninit<u32>],
+    key_count: u32,
+    p: f64,
+    shuffle: bool,
+) {
     if key_count == 0 {
         assert!(dst.is_empty());
         return;
@@ -362,7 +370,9 @@ fn fill_zipf(rng: &mut Xoshiro256StarStar, dst: &mut [MaybeUninit<u32>], key_cou
     };
     // the hashing based sampling described in the ycsb paper deviates noticeably from the desired zipf distribution, so we use a random permutation instead
     let mut permutation: Vec<u32> = (0..key_count).into_par_iter().collect();
-    permutation.par_shuffle(rng);
+    if shuffle {
+        permutation.par_shuffle(rng);
+    }
 
     let chunks: Vec<_> = dst.chunks_mut(1 << 16).zip(rng_stream(rng)).collect();
     chunks.into_par_iter().for_each(|(chunk, mut rng)| {

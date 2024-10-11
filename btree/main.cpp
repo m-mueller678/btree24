@@ -70,7 +70,7 @@ static void runMulti(BTreeCppPerfEvent e,
                      bool preInsert
 ) {
     constexpr unsigned index_samples = 1 << 25;
-    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
+    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples, true);
 
     uint8_t *payloadPtr = makePayload(payloadSize);
     std::span payload{payloadPtr, payloadSize};
@@ -211,7 +211,7 @@ static void runContention(
         unsigned threadCount
 ) {
     constexpr unsigned index_samples = 1 << 25;
-    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
+    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples, false);
 
     uint8_t *payloadPtr = makePayload(payloadSize);
     std::span payload{payloadPtr, payloadSize};
@@ -238,9 +238,7 @@ static void runContention(
             std::minstd_rand local_rng(tid);
             std::uniform_int_distribution offset_distribution(unsigned(0), unsigned(127));
             while (keepWorking.load(std::memory_order::relaxed)) {
-                unsigned zipf1 = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
-                unsigned key_offset = offset_distribution(local_rng);
-                unsigned keyIndex = zipf1 + key_offset;
+                unsigned keyIndex = zipfIndices[(threadIndexOffset + local_ops_performed) % index_samples];
                 if (keyIndex >= keyCount)
                     keyIndex -= keyCount;
                 t.insert(data[keyIndex].span(), payload);
@@ -488,7 +486,7 @@ static void runMixed(BTreeCppPerfEvent e,
         abort();
     }
     constexpr unsigned index_samples = 1 << 25;
-    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples);
+    uint32_t *zipfIndices = generate_zipf_indices(ZIPFC_RNG, keyCount, zipfParameter, index_samples, true);
     uint8_t *payloadPtr = makePayload(payloadSize);
     std::span payload{payloadPtr, payloadSize};
     unsigned preInsertCount = keyCount - keyCount / 10;
