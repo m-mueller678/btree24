@@ -946,6 +946,7 @@ int main(int argc, char *argv[]) {
             }
             case 900: {
                 runContention(e, data, keyCount, payloadSize, duration, zipfParameter, threadCount);
+                break;
             }
             default: {
                 std::cerr << "bad ycsb variant" << std::endl;
