@@ -76,6 +76,7 @@ bool TagAndDirty::shouldContentionSplit(bool contended, uint16_t write_pos) {
         bool ret = contentionSlowUpdate >= CONTENTION_MIN_TO_SPLIT  && contentionLastUpdatePos!=write_pos;
         contentionLastUpdatePos = write_pos;
         if(contentionUpdate == CONTENTION_PERIOD){
+            //std::cout<<contentionSlowUpdate<<"/"<<contentionUpdate<<","<<write_pos<<" -> "<<ret<<std::endl;
             contentionSlowUpdate=0;
             contentionUpdate=0;
             return ret;

@@ -88,7 +88,7 @@ private:
 public:
     static constexpr uint32_t CONTENTION_SAMPLE_THRESHOLD = (std::minstd_rand::max() + 1) / 32.0;
     static constexpr uint32_t CONTENTION_PERIOD = 1 << 14;
-    static constexpr uint32_t CONTENTION_MIN_TO_SPLIT = CONTENTION_PERIOD / 5.0;
+    static constexpr uint32_t CONTENTION_MIN_TO_SPLIT = CONTENTION_PERIOD / 20.0;
 
 public:
 #ifdef ENABLE_CONTENTION_SPLIT
