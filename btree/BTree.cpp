@@ -80,7 +80,7 @@ void BTree::insertImpl(std::span<uint8_t> key, std::span<uint8_t> payload) {
                             if (parent.pid() != metadataPid &&
                                 nodeLocked->_tag_and_dirty.shouldContentionSplit(contended == nodeLocked.ptr,
                                                                                  writeIndex)) {
-                                std::cout << "contentionSplit" << std::endl;;
+                                //std::cout << "contentionSplit" << std::endl;;
                                 try {
                                     GuardX<AnyNode> parentLocked{std::move(parent)};
                                     bool ok = nodeLocked->hash()->contentionSplit(parentLocked.ptr);
